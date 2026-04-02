@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export function Modal({
   title,
@@ -6,18 +7,20 @@ export function Modal({
   error,
   onClose,
 }: {
-  title: string;
-  children: ReactNode;
-  error?: string | null;
-  onClose: () => void;
+  title: string
+  children: ReactNode
+  error?: string | null
+  onClose: () => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <div className="modalBackdrop" onMouseDown={onClose}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modalHeader">
           <div className="title">{title}</div>
           <button className="btn" onClick={onClose}>
-            إغلاق
+            {t('close')}
           </button>
         </div>
         {error ? (
@@ -28,5 +31,5 @@ export function Modal({
         {children}
       </div>
     </div>
-  );
+  )
 }

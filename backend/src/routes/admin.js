@@ -536,8 +536,8 @@ adminRouter.post("/versions/:versionId/progress/pdf", async (req, res, next) => 
     const version = await AppVersion.findByPk(req.params.versionId, { include: [{ model: Application }] });
     if (!version) return res.status(404).json({ error: "Version not found" });
 
-    const langRaw = String(req.query.lang || "").toLowerCase();
-    const lang = langRaw === "fr" ? "fr" : "ar";
+    // Force PDF language to French (independent from UI language)
+    const lang = "fr";
 
     const downloads = await Download.findAll({
       where: { version_id: version.id },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +12,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
   const [modalError, setModalError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const pageSize = 10
+  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
   const [apps, setApps] = useState<any[]>([])
   const [total, setTotal] = useState(0)
@@ -34,17 +35,16 @@ export function AdminAppsListPage({ token }: { token: string }) {
   const [releaseNotes, setReleaseNotes] = useState('')
   const [newLogoFile, setNewLogoFile] = useState<File | null>(null)
 
-  async function load() {
+  const load = useCallback(async () => {
     setError(null)
     const res = await api.adminListApps(token, { page, pageSize })
     setApps(res.apps)
     setTotal(res.total)
-  }
+  }, [page, pageSize, token])
 
   useEffect(() => {
-    load().catch((e) => setError(e.message))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+    load().catch((e: any) => setError(e.message))
+  }, [load])
 
   return (
     <div className="card">
@@ -52,10 +52,10 @@ export function AdminAppsListPage({ token }: { token: string }) {
         <div className="title">{t('apps')}</div>
         <div className="row">
           <button className="btn btnPrimary" onClick={() => setCreateOpen(true)}>
-            + إنشاء تطبيق
+            {t('adminCreateAppCta')}
           </button>
           <button className="btn" onClick={() => load().catch((e) => setError(e.message))}>
-            تحديث
+            {t('refresh')}
           </button>
         </div>
       </div>
@@ -69,7 +69,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
               <div className="row" style={{ gap: 12 }}>
                 {a.logo_url ? (
                   <img
-                    src={`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}${a.logo_url}`}
+                    src={String(a.logo_url).startsWith('http') ? a.logo_url : `${apiBase}${a.logo_url}`}
                     alt=""
                     width={40}
                     height={40}
@@ -96,10 +96,10 @@ export function AdminAppsListPage({ token }: { token: string }) {
 
               <div className="row">
                 <Link className="btn" to={`/apps/${a.id}`}>
-                  تفاصيل
+                  {t('details')}
                 </Link>
                 <button className="btn" onClick={() => setEditApp(a)}>
-                  تعديل
+                  {t('edit')}
                 </button>
                 <button className="btn" onClick={() => setLogoApp(a)}>
                   {t('uploadLogo')}
@@ -108,32 +108,32 @@ export function AdminAppsListPage({ token }: { token: string }) {
                   {t('uploadVersion')}
                 </button>
                 <button className="btn btnWarning" onClick={() => setDeleteApp(a)}>
-                  حذف
+                  {t('delete')}
                 </button>
               </div>
             </div>
           </div>
         ))}
-        {apps.length === 0 ? <div className="muted">لا توجد تطبيقات.</div> : null}
+        {apps.length === 0 ? <div className="muted">{t('noApps')}</div> : null}
       </div>
 
       <div className="row" style={{ justifyContent: 'space-between', marginTop: 12 }}>
         <div className="muted">
-          صفحة {page} / {totalPages} — المجموع {total}
+          {t('paginationSummary', { page, totalPages, total })}
         </div>
         <div className="row">
           <button className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            السابق
+            {t('prev')}
           </button>
           <button className="btn" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
-            التالي
+            {t('next')}
           </button>
         </div>
       </div>
 
       {createOpen ? (
         <Modal
-          title="إنشاء تطبيق"
+          title={t('adminCreateAppTitle')}
           onClose={() => {
             setCreateOpen(false)
             setModalError(null)
@@ -145,15 +145,15 @@ export function AdminAppsListPage({ token }: { token: string }) {
         >
           <div className="grid">
             <label className="field">
-              <div className="muted">اسم التطبيق</div>
+              <div className="muted">{t('appName')}</div>
               <input className="input" value={appName} onChange={(e) => setAppName(e.target.value)} />
             </label>
             <label className="field">
-              <div className="muted">وصف (اختياري)</div>
+              <div className="muted">{t('appDescriptionOptional')}</div>
               <textarea className="textarea" value={appDesc} onChange={(e) => setAppDesc(e.target.value)} />
             </label>
             <label className="field">
-              <div className="muted">شعار التطبيق (اختياري)</div>
+              <div className="muted">{t('appLogoOptional')}</div>
               <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div className="row" style={{ gap: 12 }}>
                   {createLogoFile ? (
@@ -184,7 +184,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
                 </div>
                 {createLogoFile ? (
                   <button className="btn" type="button" onClick={() => setCreateLogoFile(null)}>
-                    إزالة الشعار
+                    {t('removeLogo')}
                   </button>
                 ) : null}
               </div>
@@ -194,14 +194,14 @@ export function AdminAppsListPage({ token }: { token: string }) {
                 className="btn btnPrimary"
                 onClick={async () => {
                   try {
-                    if (!appName.trim()) throw new Error('اسم التطبيق مطلوب')
+                    if (!appName.trim()) throw new Error(t('appNameRequired'))
                     setModalError(null)
                     const created = await api.adminCreateApp(token, { app_name: appName.trim(), description: appDesc || undefined })
                     if (createLogoFile) {
                       try {
                         await api.adminUploadLogo(token, created.app.id, createLogoFile)
                       } catch (e: any) {
-                        setError(`تم إنشاء التطبيق لكن فشل رفع الشعار: ${e.message}`)
+                        setError(t('createdButLogoFailed', { message: e.message }))
                       }
                     }
                     setCreateOpen(false)
@@ -215,7 +215,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
                   }
                 }}
               >
-                حفظ
+                {t('save')}
               </button>
             </div>
           </div>
@@ -224,7 +224,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
 
       {editApp ? (
         <Modal
-          title={`تعديل التطبيق: ${editApp.app_name}`}
+          title={t('adminEditAppTitle', { appName: editApp.app_name })}
           onClose={() => {
             setEditApp(null)
             setModalError(null)
@@ -235,11 +235,11 @@ export function AdminAppsListPage({ token }: { token: string }) {
         >
           <div className="grid">
             <label className="field">
-              <div className="muted">اسم التطبيق</div>
+              <div className="muted">{t('appName')}</div>
               <input className="input" defaultValue={editApp.app_name} onChange={(e) => setAppName(e.target.value)} />
             </label>
             <label className="field">
-              <div className="muted">وصف</div>
+              <div className="muted">{t('appDescription')}</div>
               <textarea className="textarea" defaultValue={editApp.description || ''} onChange={(e) => setAppDesc(e.target.value)} />
             </label>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
@@ -262,7 +262,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
                   }
                 }}
               >
-                حفظ
+                {t('save')}
               </button>
             </div>
           </div>
@@ -286,7 +286,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
                 className="btn btnPrimary"
                 onClick={async () => {
                   try {
-                    if (!logoFile) throw new Error('اختر شعاراً')
+                    if (!logoFile) throw new Error(t('chooseLogo'))
                     setModalError(null)
                     await api.adminUploadLogo(token, logoApp.id, logoFile)
                     setLogoApp(null)
@@ -298,7 +298,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
                   }
                 }}
               >
-                رفع
+                {t('upload')}
               </button>
             </div>
           </div>
@@ -317,7 +317,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
         >
           <div className="grid">
             <label className="field">
-              <div className="muted">ملف التطبيق (exe/msi...)</div>
+              <div className="muted">{t('appBinaryFile')}</div>
               <input className="input" type="file" onChange={(e) => setBinaryFile(e.target.files?.[0] || null)} />
             </label>
             <label className="field">
@@ -329,7 +329,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
               <textarea className="textarea" value={releaseNotes} onChange={(e) => setReleaseNotes(e.target.value)} />
             </label>
             <label className="field">
-              <div className="muted">تغيير الشعار مع هذا الإصدار (اختياري)</div>
+              <div className="muted">{t('changeLogoWithVersionOptional')}</div>
               <input className="input" type="file" accept="image/*,image/svg+xml" onChange={(e) => setNewLogoFile(e.target.files?.[0] || null)} />
             </label>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
@@ -337,8 +337,8 @@ export function AdminAppsListPage({ token }: { token: string }) {
                 className="btn btnPrimary"
                 onClick={async () => {
                   try {
-                    if (!binaryFile) throw new Error('اختر ملف التطبيق')
-                    if (!versionNumber.trim()) throw new Error('رقم الإصدار مطلوب')
+                    if (!binaryFile) throw new Error(t('chooseAppFile'))
+                    if (!versionNumber.trim()) throw new Error(t('versionNumberRequired'))
                     setModalError(null)
                     await api.adminUploadVersion(token, versionApp.id, {
                       file: binaryFile,
@@ -355,7 +355,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
                   }
                 }}
               >
-                رفع
+                {t('upload')}
               </button>
             </div>
           </div>
@@ -364,7 +364,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
 
       {deleteApp ? (
         <Modal
-          title={`حذف التطبيق: ${deleteApp.app_name}`}
+          title={t('adminDeleteAppTitle', { appName: deleteApp.app_name })}
           onClose={() => {
             setDeleteApp(null)
             setModalError(null)
@@ -372,10 +372,10 @@ export function AdminAppsListPage({ token }: { token: string }) {
           error={modalError}
         >
           <div className="grid">
-            <div className="muted">هل أنت متأكد؟ سيتم حذف التطبيق وكل الإصدارات التابعة له.</div>
+            <div className="muted">{t('deleteAppConfirm')}</div>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setDeleteApp(null)}>
-                إلغاء
+                {t('cancel')}
               </button>
               <button
                 className="btn btnWarning"
@@ -391,7 +391,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
                   }
                 }}
               >
-                حذف
+                {t('delete')}
               </button>
             </div>
           </div>

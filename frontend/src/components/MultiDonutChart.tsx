@@ -1,5 +1,3 @@
-import React from "react";
-
 export type DonutSegment = {
   value: number;
   color: string;

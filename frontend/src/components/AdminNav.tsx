@@ -1,19 +1,21 @@
 import { NavLink } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 export function AdminNav() {
+  const { t } = useTranslation()
   return (
     <div className="row" style={{ marginBottom: 12 }}>
       <NavLink to="/" end className="btn">
-        لوحة المتابعة
+        {t('adminDashboard')}
       </NavLink>
       <NavLink to="/apps" className="btn">
-        التطبيقات
+        {t('navApps')}
       </NavLink>
       <NavLink to="/municipalities" className="btn">
-        البلديات
+        {t('navMunicipalities')}
       </NavLink>
       <NavLink to="/users" className="btn">
-        المستخدمون
+        {t('navUsers')}
       </NavLink>
     </div>
   )

@@ -35,7 +35,12 @@ app.use(
   })
 );
 
-app.use(helmet());
+app.use(
+  helmet({
+    // Allow frontend (different origin) to load logos/files from `/files/*`
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  })
+);
 
 const corsOrigin = env.corsOrigin
   ? env.corsOrigin
