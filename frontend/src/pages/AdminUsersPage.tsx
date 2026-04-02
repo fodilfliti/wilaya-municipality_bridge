@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import { Modal } from "../components/Modal";
 import { ErrorPopup } from "../components/ErrorPopup";
+import { Snackbar } from "../components/Snackbar";
 
 export function AdminUsersPage({ token }: { token: string }) {
   const { t } = useTranslation();
@@ -38,6 +39,8 @@ export function AdminUsersPage({ token }: { token: string }) {
     code8: string;
     pdf_url: string;
   } | null>(null);
+
+  const [snackbarMsg, setSnackbarMsg] = useState<string | null>(null);
 
   async function load() {
     if (!municipalityId) return;
@@ -96,15 +99,25 @@ export function AdminUsersPage({ token }: { token: string }) {
           </Link>
           <button
             className="btn"
-            onClick={() => load().catch((e) => setError(e.message))}
-            disabled={!municipalityId}
+            onClick={() => {
+              if (!municipalityId) {
+                setSnackbarMsg(t("selectMunicipalityFirst"));
+                return;
+              }
+              load().catch((e) => setError(e.message));
+            }}
           >
             {t("refresh")}
           </button>
           <button
             className="btn btnPrimary"
-            onClick={() => setCreateOpen(true)}
-            disabled={!municipalityId}
+            onClick={() => {
+              if (!municipalityId) {
+                setSnackbarMsg(t("selectMunicipalityFirst"));
+                return;
+              }
+              setCreateOpen(true);
+            }}
           >
             {t("createUserCta")}
           </button>
@@ -385,6 +398,8 @@ export function AdminUsersPage({ token }: { token: string }) {
           </div>
         </Modal>
       ) : null}
+
+      <Snackbar open={Boolean(snackbarMsg)} message={snackbarMsg || ""} onClose={() => setSnackbarMsg(null)} />
     </div>
   );
 }

@@ -271,3 +271,33 @@ select {
 .stackBar .segNo {
   background: rgba(156, 163, 175, 0.6);
 }
+
+.snackbar {
+  position: fixed;
+  inset-inline: 12px;
+  bottom: 14px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.snackbarInner {
+  pointer-events: auto;
+  width: min(720px, 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.snackbarMsg {
+  font-size: 14px;
+  opacity: 0.95;
+}
