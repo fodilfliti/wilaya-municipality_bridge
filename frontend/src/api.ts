@@ -5,6 +5,17 @@ export type LoginResponse = {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
+export class ApiError extends Error {
+  status: number
+  code?: string
+  constructor(message: string, opts: { status: number; code?: string }) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = opts.status
+    this.code = opts.code
+  }
+}
+
 async function http<T>(path: string, opts: RequestInit & { token?: string } = {}): Promise<T> {
   const headers = new Headers(opts.headers)
   headers.set('Content-Type', 'application/json')
@@ -12,7 +23,7 @@ async function http<T>(path: string, opts: RequestInit & { token?: string } = {}
 
   const res = await fetch(`${API_URL}${path}`, { ...opts, headers })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  if (!res.ok) throw new ApiError((data as any).error || 'Erreur', { status: res.status, code: (data as any).code })
   return data as T
 }
 

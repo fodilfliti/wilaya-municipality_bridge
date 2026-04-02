@@ -64,7 +64,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
 
       <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
         {apps.map((a) => (
-          <div key={a.id} className="card" style={{ boxShadow: 'none' }}>
+          <div key={a.id} className="card cardSubtle">
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <div className="row" style={{ gap: 12 }}>
                 {a.logo_url ? (

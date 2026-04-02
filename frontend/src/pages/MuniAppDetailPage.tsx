@@ -56,10 +56,10 @@ export function MuniAppDetailPage({ token }: { token: string }) {
         </div>
         <div className="row">
           <Link className="btn" to="/">
-            رجوع
+            {t("back")}
           </Link>
           <button className="btn btnPrimary" onClick={refresh}>
-            تحديث
+            {t("refresh")}
           </button>
         </div>
       </div>
@@ -69,7 +69,7 @@ export function MuniAppDetailPage({ token }: { token: string }) {
         <div className="muted">...</div>
       ) : (
         <div style={{ display: "grid", gap: 10 }}>
-          <div className="card" style={{ boxShadow: "none" }}>
+          <div className="card cardSubtle">
             <div className="row" style={{ justifyContent: "space-between" }}>
               <div className="row" style={{ flexWrap: "wrap" }}>
                 {status ? (
@@ -84,21 +84,23 @@ export function MuniAppDetailPage({ token }: { token: string }) {
                 )}
                 {last ? (
                   <div className="chip">
-                    آخر تحميل: {last.version_number}{" "}
-                    {last.timestamp
-                      ? `— ${new Date(last.timestamp).toLocaleString()}`
-                      : ""}
+                    {t("lastDownloadAt", {
+                      version: last.version_number,
+                      timestamp: last.timestamp
+                        ? new Date(last.timestamp).toLocaleString()
+                        : "",
+                    })}
                   </div>
                 ) : (
-                  <div className="chip">لم يتم التحميل بعد</div>
+                  <div className="chip">{t("notDownloadedYet")}</div>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="card" style={{ boxShadow: "none" }}>
+          <div className="card cardSubtle">
             <div className="title" style={{ fontSize: 16 }}>
-              كل الإصدارات
+              {t("allVersions")}
             </div>
             {versions.length === 0 ? (
               <div className="muted">{t("noVersions")}</div>

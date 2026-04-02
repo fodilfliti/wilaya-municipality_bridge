@@ -26,7 +26,14 @@ export function Topbar({
       </div>
 
       <div className="actions">
-        <button className="btn" onClick={() => i18n.changeLanguage(i18n.language === 'fr' ? 'ar' : 'fr')}>
+        <button
+          className="btn"
+          onClick={() => {
+            const next = i18n.language === 'fr' ? 'ar' : 'fr'
+            localStorage.setItem('lang', next)
+            i18n.changeLanguage(next)
+          }}
+        >
           {i18n.language === 'fr' ? t('langArabic') : t('langFrench')}
         </button>
         {!isLoggedIn ? (
@@ -37,7 +44,7 @@ export function Topbar({
           <>
             {!isAdmin ? (
               <button className="btn" onClick={onOpenChangeCode}>
-                تغيير الرمز
+                {t('changeCode')}
               </button>
             ) : null}
             <button className="btn" onClick={onLogout}>

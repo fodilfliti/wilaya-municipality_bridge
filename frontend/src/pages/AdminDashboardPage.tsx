@@ -94,15 +94,15 @@ export function AdminDashboardPage({
         <div className="grid grid2" style={{ alignItems: 'start' }}>
           <div className="card">
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-              <div style={{ fontWeight: 800 }}>حالة التحديث حسب التطبيق</div>
+              <div style={{ fontWeight: 800 }}>{t('dashboardByAppTitle')}</div>
               <button className="btn btnPrimary" onClick={onRefresh}>
-                تحديث القائمة
+                {t('refreshList')}
               </button>
             </div>
 
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <label className="field" style={{ minWidth: 260 }}>
-                <div className="muted">اختيار تطبيق</div>
+                <div className="muted">{t('selectApp')}</div>
                 <select className="input" value={selectedAppId ?? ''} onChange={(e) => setSelectedAppId(Number(e.target.value))}>
                   {allAppIds.map((id) => (
                     <option key={id} value={id}>
@@ -117,7 +117,7 @@ export function AdminDashboardPage({
                   <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
                     <div className="row" style={{ justifyContent: 'flex-end', alignItems: 'center' }}>
                       <MultiDonutChart
-                        ariaLabel="توزيع حالة التحديث"
+                        ariaLabel={t('updateStatusDistributionAria')}
                         centerLabel={`${selectedStats.total}`}
                         segments={[
                           { value: selectedStats.UP_TO_DATE, color: 'rgba(16,185,129,0.95)', label: t('upToDate') },
@@ -141,20 +141,20 @@ export function AdminDashboardPage({
 
           <div className="card">
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <div style={{ fontWeight: 800 }}>حالة التحديث حسب البلدية</div>
-              <div className="muted">اختر بلدية لعرض تفاصيلها فقط</div>
+              <div style={{ fontWeight: 800 }}>{t('dashboardByMunicipalityTitle')}</div>
+              <div className="muted">{t('dashboardByMunicipalityHint')}</div>
             </div>
 
-            <div className="card" style={{ boxShadow: 'none', marginTop: 12 }}>
+            <div className="card cardSubtle" style={{ marginTop: 12 }}>
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <label className="field" style={{ minWidth: 260 }}>
-                  <div className="muted">اختيار بلدية</div>
+                  <div className="muted">{t('selectMunicipality')}</div>
                   <select
                     className="input"
                     value={selectedMuniId === '' ? '' : String(selectedMuniId)}
                     onChange={(e) => setSelectedMuniId(e.target.value ? Number(e.target.value) : '')}
                   >
-                    <option value="">كل البلديات</option>
+                    <option value="">{t('allMunicipalities')}</option>
                     {(progress || []).map((m: any) => (
                       <option key={m.municipality.id} value={m.municipality.id}>
                         {m.municipality.name_ar} — {m.municipality.code}
@@ -163,9 +163,9 @@ export function AdminDashboardPage({
                   </select>
                 </label>
                 <div className="row" style={{ justifyContent: 'flex-end' }}>
-                  <div className="chip">النتائج: {filteredMunicipalities.length}</div>
+                  <div className="chip">{t('resultsCount', { count: filteredMunicipalities.length })}</div>
                   <button className="btn btnPrimary" onClick={onRefresh}>
-                    تحديث
+                    {t('refresh')}
                   </button>
                 </div>
               </div>
@@ -179,7 +179,7 @@ export function AdminDashboardPage({
                 const no = (m.apps || []).filter((a: any) => a.status === 'NO_VERSIONS').length
                 const total = (m.apps || []).length || 1
                 return (
-                  <div key={m.municipality.id} className="card" style={{ boxShadow: 'none' }}>
+                  <div key={m.municipality.id} className="card cardSubtle">
                     <div className="row" style={{ justifyContent: 'space-between' }}>
                       <div>
                         <div style={{ fontWeight: 800 }}>{m.municipality.name_ar}</div>
@@ -189,7 +189,7 @@ export function AdminDashboardPage({
                       </div>
                       <div className="row">
                         <Link className="btn btnPrimary" to={`/municipalities/${m.municipality.id}`}>
-                          التفاصيل
+                          {t('details')}
                         </Link>
                         <div className="chip">
                           {t('upToDate')}: {up} / {total}

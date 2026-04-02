@@ -6,10 +6,12 @@ export function LoginModal({
   open,
   onClose,
   onSuccess,
+  notice,
 }: {
   open: boolean
   onClose: () => void
   onSuccess: (res: api.LoginResponse) => void
+  notice?: string | null
 }) {
   const { t } = useTranslation()
   const [username, setUsername] = useState(() => localStorage.getItem('last_username') || '')
@@ -45,6 +47,7 @@ export function LoginModal({
         </div>
 
         <div className="grid">
+          {notice ? <div className="statusPill stOut">{notice}</div> : null}
           {error ? <div className="statusPill stNever">{error}</div> : null}
           <label className="field">
             <div className="muted">{t('username')}</div>

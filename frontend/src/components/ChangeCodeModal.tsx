@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as api from '../api'
 import { Modal } from './Modal'
+import { useTranslation } from 'react-i18next'
 
 export function ChangeCodeModal({
   token,
@@ -11,6 +12,7 @@ export function ChangeCodeModal({
   open: boolean
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   const [currentCode, setCurrentCode] = useState('')
   const [nextCode, setNextCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -28,14 +30,14 @@ export function ChangeCodeModal({
   if (success) {
     return (
       <Modal
-        title="تم"
+        title={t('done')}
         onClose={() => {
           setSuccess(false)
           onClose()
         }}
       >
         <div className="grid">
-          <div className="muted">تم تغيير الرمز بنجاح.</div>
+          <div className="muted">{t('codeChangedSuccess')}</div>
           <div className="row" style={{ justifyContent: 'flex-end' }}>
             <button
               className="btn btnPrimary"
@@ -44,7 +46,7 @@ export function ChangeCodeModal({
                 onClose()
               }}
             >
-              حسناً
+              {t('ok')}
             </button>
           </div>
         </div>
@@ -54,7 +56,7 @@ export function ChangeCodeModal({
 
   return (
     <Modal
-      title="تغيير الرمز"
+      title={t('changeCode')}
       onClose={() => {
         onClose()
         reset()
@@ -62,13 +64,13 @@ export function ChangeCodeModal({
       error={error}
     >
       <div className="grid">
-        <div className="muted">أدخل الرمز الحالي ثم الرمز الجديد.</div>
+        <div className="muted">{t('changeCodeHint')}</div>
         <label className="field">
-          <div className="muted">الرمز الحالي</div>
+          <div className="muted">{t('currentCode')}</div>
           <input className="input" type="password" value={currentCode} onChange={(e) => setCurrentCode(e.target.value)} />
         </label>
         <label className="field">
-          <div className="muted">الرمز الجديد (8 أرقام أو أكثر)</div>
+          <div className="muted">{t('newCode')}</div>
           <input className="input" type="password" value={nextCode} onChange={(e) => setNextCode(e.target.value)} />
         </label>
         <div className="row" style={{ justifyContent: 'flex-end' }}>
@@ -80,7 +82,7 @@ export function ChangeCodeModal({
             }}
             disabled={saving}
           >
-            إلغاء
+            {t('cancel')}
           </button>
           <button
             className="btn btnPrimary"
@@ -88,8 +90,8 @@ export function ChangeCodeModal({
             onClick={async () => {
               try {
                 setError(null)
-                if (!currentCode.trim()) throw new Error('الرمز الحالي مطلوب')
-                if (!nextCode.trim()) throw new Error('الرمز الجديد مطلوب')
+                if (!currentCode.trim()) throw new Error(t('currentCodeRequired'))
+                if (!nextCode.trim()) throw new Error(t('newCodeRequired'))
                 setSaving(true)
                 await api.muniChangeCode(token, { current_code: currentCode.trim(), new_code: nextCode.trim() })
                 reset()
@@ -101,7 +103,7 @@ export function ChangeCodeModal({
               }
             }}
           >
-            حفظ
+            {t('save')}
           </button>
         </div>
       </div>

@@ -28,6 +28,7 @@ function App() {
   });
 
   const [loginOpen, setLoginOpen] = useState(false);
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [progress, setProgress] = useState<any[] | null>(null);
@@ -91,8 +92,20 @@ function App() {
 
   useEffect(() => {
     if (!token || !me) return;
-    if (isAdmin) refreshAdmin().catch((e) => setError(e.message));
-    else refreshMuniApps().catch((e) => setError(e.message));
+    const handleAuthError = (e: unknown) => {
+      const err = e as any
+      if (err && typeof err === 'object' && err.status === 401) {
+        // Token expired/invalid -> force login
+        setError(null)
+        setLoginNotice(t('sessionExpired'))
+        setLoginOpen(true)
+        logout()
+        return
+      }
+      setError(err?.message || 'Erreur')
+    }
+    if (isAdmin) refreshAdmin().catch(handleAuthError);
+    else refreshMuniApps().catch(handleAuthError);
   }, [isAdmin, me, refreshAdmin, refreshMuniApps, token]);
 
   return (
@@ -118,9 +131,11 @@ function App() {
         <div className="actions">
           <button
             className="btn"
-            onClick={() =>
-              i18n.changeLanguage(i18n.language === "fr" ? "ar" : "fr")
-            }
+            onClick={() => {
+              const next = i18n.language === "fr" ? "ar" : "fr"
+              localStorage.setItem("lang", next)
+              i18n.changeLanguage(next)
+            }}
           >
             {i18n.language === "fr" ? t("langArabic") : t("langFrench")}
           </button>
@@ -135,7 +150,7 @@ function App() {
             <>
               {!isAdmin ? (
                 <button className="btn" onClick={() => setChangeCodeOpen(true)}>
-                  تغيير الرمز
+                  {t("changeCode")}
                 </button>
               ) : null}
               <button
@@ -155,16 +170,16 @@ function App() {
       {me && isAdmin && (
         <div className="row" style={{ marginBottom: 12 }}>
           <NavLink to="/" end className="btn">
-            لوحة المتابعة
+            {t("adminDashboard")}
           </NavLink>
           <NavLink to="/apps" className="btn">
-            التطبيقات
+            {t("navApps")}
           </NavLink>
           <NavLink to="/municipalities" className="btn">
-            البلديات
+            {t("navMunicipalities")}
           </NavLink>
           <NavLink to="/users" className="btn">
-            المستخدمون
+            {t("navUsers")}
           </NavLink>
         </div>
       )}
@@ -177,7 +192,7 @@ function App() {
         <div className="card">
           <div className="title">{t("login")}</div>
           <div className="muted">
-            قم بتسجيل الدخول للوصول إلى التطبيقات والمتابعة.
+            {t("loginHint")}
           </div>
         </div>
       ) : (
@@ -260,13 +275,18 @@ function App() {
 
       <LoginModal
         open={loginOpen}
-        onClose={() => setLoginOpen(false)}
+        onClose={() => {
+          setLoginOpen(false)
+          setLoginNotice(null)
+        }}
+        notice={loginNotice}
         onSuccess={(res) => {
           setToken(res.token);
           setMe(res.user);
           localStorage.setItem("token", res.token);
           localStorage.setItem("me", JSON.stringify(res.user));
           setLoginOpen(false);
+          setLoginNotice(null)
         }}
       />
 

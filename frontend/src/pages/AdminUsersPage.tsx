@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import * as api from "../api";
 import { Modal } from "../components/Modal";
 import { ErrorPopup } from "../components/ErrorPopup";
 
 export function AdminUsersPage({ token }: { token: string }) {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialMuniId = Number(searchParams.get("municipalityId") || "") || "";
 
@@ -85,26 +87,26 @@ export function AdminUsersPage({ token }: { token: string }) {
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div>
-          <div className="title">المستخدمون</div>
-          <div className="muted">اختر رقم البلدية ثم إدارة المستخدمين.</div>
+          <div className="title">{t("navUsers")}</div>
+          <div className="muted">{t("usersPageHint")}</div>
         </div>
         <div className="row">
           <Link className="btn" to="/municipalities">
-            البلديات
+            {t("navMunicipalities")}
           </Link>
           <button
             className="btn"
             onClick={() => load().catch((e) => setError(e.message))}
             disabled={!municipalityId}
           >
-            تحديث
+            {t("refresh")}
           </button>
           <button
             className="btn btnPrimary"
             onClick={() => setCreateOpen(true)}
             disabled={!municipalityId}
           >
-            + إنشاء مستخدم
+            {t("createUserCta")}
           </button>
         </div>
       </div>
@@ -115,7 +117,7 @@ export function AdminUsersPage({ token }: { token: string }) {
 
       <div className="row" style={{ marginTop: 12 }}>
         <label className="field" style={{ minWidth: 320 }}>
-          <div className="muted">البلدية</div>
+          <div className="muted">{t("selectMunicipality")}</div>
           <select
             className="input"
             value={municipalityId === "" ? "" : String(municipalityId)}
@@ -123,7 +125,7 @@ export function AdminUsersPage({ token }: { token: string }) {
               setMunicipalityId(e.target.value ? Number(e.target.value) : "")
             }
           >
-            <option value="">اختر بلدية...</option>
+            <option value="">{t("chooseMunicipality")}</option>
             {municipalities.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name_ar} — {m.code}
@@ -132,7 +134,7 @@ export function AdminUsersPage({ token }: { token: string }) {
           </select>
         </label>
         {municipality ? (
-          <div className="card" style={{ boxShadow: "none", flex: 1 }}>
+          <div className="card cardSubtle" style={{ flex: 1 }}>
             <div style={{ fontWeight: 900 }}>{municipality.name_ar}</div>
             <div className="muted">
               {municipality.name_fr} — {municipality.code}
@@ -142,20 +144,20 @@ export function AdminUsersPage({ token }: { token: string }) {
       </div>
 
       {createdCreds ? (
-        <Modal title="تم إنشاء المستخدم" onClose={() => setCreatedCreds(null)}>
+        <Modal title={t("userCreatedTitle")} onClose={() => setCreatedCreds(null)}>
           <div className="grid">
-            <div className="muted">Code: {createdCreds.code8}</div>
+            <div className="muted">{t("codeLabel", { code: createdCreds.code8 })}</div>
             <a
               className="btn"
               href={`${import.meta.env.VITE_API_URL || "http://localhost:4000"}${createdCreds.pdf_url}`}
               target="_blank"
               rel="noreferrer"
             >
-              تحميل PDF
+              {t("downloadPdf")}
             </a>
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setCreatedCreds(null)}>
-                إغلاق
+                {t("close")}
               </button>
             </div>
           </div>
@@ -164,29 +166,29 @@ export function AdminUsersPage({ token }: { token: string }) {
 
       <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
         {users.map((u) => (
-          <div key={u.id} className="card" style={{ boxShadow: "none" }}>
+          <div key={u.id} className="card cardSubtle">
             <div className="row" style={{ justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontWeight: 900 }}>{u.username}</div>
-                <div className="muted">{u.is_blocked ? "محظور" : "نشط"}</div>
+                <div className="muted">{u.is_blocked ? t("blocked") : t("active")}</div>
               </div>
               <div className="row">
                 <button className="btn" onClick={() => setResetUser(u)}>
-                  إعادة تعيين
+                  {t("reset")}
                 </button>
                 {!u.is_blocked ? (
                   <button
                     className="btn btnWarning"
                     onClick={() => setBlockUser(u)}
                   >
-                    حظر
+                    {t("block")}
                   </button>
                 ) : (
                   <button
                     className="btn btnSuccess"
                     onClick={() => setUnblockUser(u)}
                   >
-                    رفع الحظر
+                    {t("unblock")}
                   </button>
                 )}
               </div>
@@ -194,7 +196,7 @@ export function AdminUsersPage({ token }: { token: string }) {
           </div>
         ))}
         {municipalityId && users.length === 0 ? (
-          <div className="muted">لا يوجد مستخدمون.</div>
+          <div className="muted">{t("noUsers")}</div>
         ) : null}
       </div>
 
@@ -204,7 +206,7 @@ export function AdminUsersPage({ token }: { token: string }) {
           style={{ justifyContent: "space-between", marginTop: 12 }}
         >
           <div className="muted">
-            صفحة {page} / {totalPages} — المجموع {total}
+            {t("paginationSummary", { page, totalPages, total })}
           </div>
           <div className="row">
             <button
@@ -212,14 +214,14 @@ export function AdminUsersPage({ token }: { token: string }) {
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              السابق
+              {t("prev")}
             </button>
             <button
               className="btn"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
-              التالي
+              {t("next")}
             </button>
           </div>
         </div>
@@ -227,7 +229,7 @@ export function AdminUsersPage({ token }: { token: string }) {
 
       {createOpen ? (
         <Modal
-          title="إنشاء مستخدم بلدية"
+          title={t("createMuniUser")}
           onClose={() => {
             setCreateOpen(false);
             setModalError(null);
@@ -236,9 +238,9 @@ export function AdminUsersPage({ token }: { token: string }) {
           error={modalError}
         >
           <div className="grid">
-            <div className="muted">سيتم إنشاء رمز 8 أرقام و PDF تلقائياً.</div>
+            <div className="muted">{t("createUserAutoHint")}</div>
             <label className="field">
-              <div className="muted">اسم مستخدم (اختياري)</div>
+              <div className="muted">{t("optionalUsername")}</div>
               <input
                 className="input"
                 value={optUsername}
@@ -251,7 +253,7 @@ export function AdminUsersPage({ token }: { token: string }) {
                 onClick={async () => {
                   try {
                     if (!municipalityId)
-                      throw new Error("Municipality ID مطلوب");
+                      throw new Error(t("municipalityIdRequired"));
                     setModalError(null);
                     const res = await api.adminCreateMuniUser(
                       token,
@@ -268,7 +270,7 @@ export function AdminUsersPage({ token }: { token: string }) {
                   }
                 }}
               >
-                إنشاء
+                {t("create")}
               </button>
             </div>
           </div>
@@ -277,7 +279,7 @@ export function AdminUsersPage({ token }: { token: string }) {
 
       {resetUser ? (
         <Modal
-          title={`إعادة تعيين: ${resetUser.username}`}
+          title={t("resetUserTitle", { username: resetUser.username })}
           onClose={() => {
             setResetUser(null);
             setModalError(null);
@@ -285,10 +287,10 @@ export function AdminUsersPage({ token }: { token: string }) {
           error={modalError}
         >
           <div className="grid">
-            <div className="muted">سيتم إنشاء رمز 8 أرقام جديد و PDF جديد.</div>
+            <div className="muted">{t("resetUserHint")}</div>
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setResetUser(null)}>
-                إلغاء
+                {t("cancel")}
               </button>
               <button
                 className="btn btnPrimary"
@@ -305,7 +307,7 @@ export function AdminUsersPage({ token }: { token: string }) {
                   }
                 }}
               >
-                تأكيد
+                {t("confirm")}
               </button>
             </div>
           </div>
@@ -314,7 +316,7 @@ export function AdminUsersPage({ token }: { token: string }) {
 
       {blockUser ? (
         <Modal
-          title={`حظر المستخدم: ${blockUser.username}`}
+          title={t("blockUserTitle", { username: blockUser.username })}
           onClose={() => {
             setBlockUser(null);
             setModalError(null);
@@ -322,10 +324,10 @@ export function AdminUsersPage({ token }: { token: string }) {
           error={modalError}
         >
           <div className="grid">
-            <div className="muted">هل أنت متأكد من حظر المستخدم؟</div>
+            <div className="muted">{t("blockUserConfirm")}</div>
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setBlockUser(null)}>
-                إلغاء
+                {t("cancel")}
               </button>
               <button
                 className="btn btnWarning"
@@ -341,7 +343,7 @@ export function AdminUsersPage({ token }: { token: string }) {
                   }
                 }}
               >
-                حظر
+                {t("block")}
               </button>
             </div>
           </div>
@@ -350,7 +352,7 @@ export function AdminUsersPage({ token }: { token: string }) {
 
       {unblockUser ? (
         <Modal
-          title={`رفع الحظر: ${unblockUser.username}`}
+          title={t("unblockUserTitle", { username: unblockUser.username })}
           onClose={() => {
             setUnblockUser(null);
             setModalError(null);
@@ -358,10 +360,10 @@ export function AdminUsersPage({ token }: { token: string }) {
           error={modalError}
         >
           <div className="grid">
-            <div className="muted">هل أنت متأكد من رفع الحظر؟</div>
+            <div className="muted">{t("unblockUserConfirm")}</div>
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setUnblockUser(null)}>
-                إلغاء
+                {t("cancel")}
               </button>
               <button
                 className="btn btnSuccess"
@@ -377,7 +379,7 @@ export function AdminUsersPage({ token }: { token: string }) {
                   }
                 }}
               >
-                رفع الحظر
+                {t("unblock")}
               </button>
             </div>
           </div>

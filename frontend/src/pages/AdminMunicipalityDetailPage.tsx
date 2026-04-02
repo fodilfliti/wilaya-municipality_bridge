@@ -46,8 +46,8 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
   if (!municipalityId) {
     return (
       <div className="card">
-        <div className="title">بلدية</div>
-        <div className="muted">Municipality ID غير صحيح</div>
+        <div className="title">{t('navMunicipalities')}</div>
+        <div className="muted">{t('invalidMunicipalityId')}</div>
       </div>
     )
   }
@@ -63,31 +63,31 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
         </div>
         <div className="row">
           <Link className="btn" to="/municipalities">
-            رجوع
+            {t('back')}
           </Link>
           <Link className="btn btnPrimary" to={`/users?municipalityId=${municipalityId}`}>
-            المستخدمون
+            {t('navUsers')}
           </Link>
           <button className="btn" onClick={() => load().catch((e) => setError(e.message))}>
-            تحديث
+            {t('refresh')}
           </button>
         </div>
       </div>
 
       {error ? <ErrorPopup message={error} onClose={() => setError(null)} /> : null}
 
-      <div className="card" style={{ boxShadow: 'none', marginTop: 10 }}>
+      <div className="card cardSubtle" style={{ marginTop: 10 }}>
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ minWidth: 280 }}>
-            <div style={{ fontWeight: 900, marginBottom: 6 }}>ملخص التقدّم</div>
-            <div className="muted">يعرض حالة التحميل لكل التطبيقات لهذه البلدية.</div>
+            <div style={{ fontWeight: 900, marginBottom: 6 }}>{t('municipalityProgressSummaryTitle')}</div>
+            <div className="muted">{t('municipalityProgressSummaryHint')}</div>
           </div>
           <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <div className="statusPill stNo">المجموع: {summary.TOTAL}</div>
-            <div className="statusPill stUp">محدّث: {summary.UP_TO_DATE}</div>
-            <div className="statusPill stOut">غير محدّث: {summary.OUTDATED}</div>
-            <div className="statusPill stNever">لم يتم التحميل: {summary.NEVER_DOWNLOADED}</div>
-            {summary.NO_VERSIONS > 0 ? <div className="statusPill stNo">لا توجد إصدارات: {summary.NO_VERSIONS}</div> : null}
+            <div className="statusPill stNo">{t('total')}: {summary.TOTAL}</div>
+            <div className="statusPill stUp">{t('upToDate')}: {summary.UP_TO_DATE}</div>
+            <div className="statusPill stOut">{t('outdated')}: {summary.OUTDATED}</div>
+            <div className="statusPill stNever">{t('neverDownloaded')}: {summary.NEVER_DOWNLOADED}</div>
+            {summary.NO_VERSIONS > 0 ? <div className="statusPill stNo">{t('noVersions')}: {summary.NO_VERSIONS}</div> : null}
             <div className="chip" style={{ borderColor: 'rgba(245, 158, 11, 0.35)', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)' }}>
               {t('downgrade')}: {summary.DOWNGRADE}
             </div>
@@ -114,24 +114,24 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
                   : 'statusPill stNo'
           const label =
             a.status === 'UP_TO_DATE'
-              ? 'محدّث'
+              ? t('upToDate')
               : a.status === 'OUTDATED'
-                ? 'غير محدّث'
+                ? t('outdated')
                 : a.status === 'NEVER_DOWNLOADED'
-                  ? 'لم يتم التحميل'
-                  : 'لا توجد إصدارات'
+                  ? t('neverDownloaded')
+                  : t('noVersions')
 
           return (
-            <div key={a.app_id} className="card" style={{ boxShadow: 'none' }}>
+            <div key={a.app_id} className="card cardSubtle">
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontWeight: 900 }}>{a.app_name}</div>
                   {a.last ? (
                     <div className="muted">
-                      آخر تحميل: {a.last.version_number} — {new Date(a.last.timestamp).toLocaleString()}
+                      {t('lastDownloadAt', { version: a.last.version_number, timestamp: new Date(a.last.timestamp).toLocaleString() })}
                     </div>
                   ) : (
-                    <div className="muted">آخر تحميل: —</div>
+                    <div className="muted">{t('lastDownloadAtEmpty')}</div>
                   )}
                   {a.downgrade ? <div className="muted">{t('downgradeDetectedNote')}</div> : null}
                 </div>
@@ -150,7 +150,7 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
             </div>
           )
         })}
-        {apps.length === 0 ? <div className="muted">لا توجد تطبيقات.</div> : null}
+        {apps.length === 0 ? <div className="muted">{t('noApps')}</div> : null}
       </div>
     </div>
   )

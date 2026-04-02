@@ -127,6 +127,18 @@ select {
   padding: 16px;
 }
 
+/* Light inner containers inside a main card (filters, lists, etc.) */
+.cardSubtle {
+  /* Option B: neutral gray */
+  background: rgba(15, 23, 42, 0.03);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: none;
+}
+
+.cardSubtle .chip {
+  background: rgba(255, 255, 255, 0.65);
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr;

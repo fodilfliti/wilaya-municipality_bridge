@@ -1,4 +1,5 @@
 import { Modal } from "./Modal";
+import { useTranslation } from "react-i18next";
 
 export function ErrorPopup({
   message,
@@ -7,13 +8,14 @@ export function ErrorPopup({
   message: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <Modal title="خطأ" onClose={onClose}>
+    <Modal title={t("error")} onClose={onClose}>
       <div className="grid">
         <div className="muted">{message}</div>
         <div className="row" style={{ justifyContent: "flex-end" }}>
           <button className="btn btnPrimary" onClick={onClose}>
-            حسناً
+            {t("ok")}
           </button>
         </div>
       </div>

@@ -67,7 +67,7 @@ export function MuniAppsPage({
         <div className="title">{t('apps')}</div>
         <div className="row">
           <button className="btn btnPrimary" onClick={onRefresh}>
-            تحديث
+            {t('refresh')}
           </button>
         </div>
       </div>
@@ -80,22 +80,22 @@ export function MuniAppsPage({
             <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <div className="row" style={{ flexWrap: 'wrap' }}>
                 <button className={`btn ${tab === 'NEEDS' ? 'btnPrimary' : ''}`} onClick={() => setTab('NEEDS')}>
-                  تطبيقات تحتاج تحميل/تحديث ({needsApps.length})
+                  {t('muniNeedsAppsTab', { count: needsApps.length })}
                 </button>
                 <button className={`btn ${tab === 'ALL' ? 'btnPrimary' : ''}`} onClick={() => setTab('ALL')}>
-                  كل التطبيقات
+                  {t('muniAllAppsTab')}
                 </button>
               </div>
             </div>
             {tab === 'ALL' ? (
               <div className="muted" style={{ fontSize: 13 }}>
-                اختر "التفاصيل" لتحميل أي إصدار (ترقية/تخفيض).
+                {t('muniAllAppsHint')}
               </div>
             ) : null}
           </div>
 
           {visibleApps.map((a: any) => (
-            <div key={a.id} className="card" style={{ boxShadow: 'none' }}>
+            <div key={a.id} className="card cardSubtle">
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontWeight: 800 }}>{a.app_name}</div>
@@ -104,21 +104,24 @@ export function MuniAppsPage({
                     {a.status ? <div className="chip">{statusLabel(String(a.status))}</div> : null}
                     {a.last ? (
                       <div className="chip">
-                        آخر تحميل: {a.last.version_number} {a.last.timestamp ? `— ${new Date(a.last.timestamp).toLocaleString()}` : ''}
+                        {t('lastDownload', {
+                          version: a.last.version_number,
+                          timestamp: a.last.timestamp ? new Date(a.last.timestamp).toLocaleString() : '',
+                        })}
                       </div>
                     ) : (
-                      <div className="chip">لم يتم التحميل بعد</div>
+                      <div className="chip">{t('notDownloadedYet')}</div>
                     )}
                   </div>
                 </div>
                 <div className="row">
                   {tab === 'NEEDS' ? (
                     <button className="btn" onClick={() => openVersionsPopup(Number(a.id))}>
-                      الإصدارات
+                      {t('versions')}
                     </button>
                   ) : (
                     <button className="btn" onClick={() => onGoToApp(Number(a.id))}>
-                      التفاصيل
+                      {t('details')}
                     </button>
                   )}
                   {a.currentVersion ? (
@@ -153,7 +156,7 @@ export function MuniAppsPage({
 
       {versionsOpen ? (
         <Modal
-          title={versionsApp?.app_name ? `الإصدارات — ${versionsApp.app_name}` : 'الإصدارات'}
+          title={versionsApp?.app_name ? t('versionsForAppTitle', { appName: versionsApp.app_name }) : t('versions')}
           onClose={() => {
             setVersionsOpen(false)
             setVersionsError(null)
@@ -180,10 +183,13 @@ export function MuniAppsPage({
                   )}
                   {versionsLast ? (
                     <div className="chip">
-                      آخر تحميل: {versionsLast.version_number} {versionsLast.timestamp ? `— ${new Date(versionsLast.timestamp).toLocaleString()}` : ''}
+                      {t('lastDownload', {
+                        version: versionsLast.version_number,
+                        timestamp: versionsLast.timestamp ? new Date(versionsLast.timestamp).toLocaleString() : '',
+                      })}
                     </div>
                   ) : (
-                    <div className="chip">لم يتم التحميل بعد</div>
+                    <div className="chip">{t('notDownloadedYet')}</div>
                   )}
                 </div>
               </div>
@@ -194,7 +200,7 @@ export function MuniAppsPage({
               ) : (
                 <div style={{ display: 'grid', gap: 10 }}>
                   {versionsList.map((v: any) => (
-                    <div key={v.id} className="card" style={{ boxShadow: 'none' }}>
+                    <div key={v.id} className="card cardSubtle">
                       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <div style={{ fontWeight: 900 }}>{v.version_number}</div>

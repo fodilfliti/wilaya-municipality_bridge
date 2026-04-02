@@ -42,7 +42,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
     return (
       <div className="card">
         <div className="title">App</div>
-        <div className="muted">App ID غير صحيح</div>
+        <div className="muted">{t("invalidAppId")}</div>
       </div>
     );
   }
@@ -55,7 +55,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
       >
         <div className="row">
           <Link className="btn" to="/apps">
-            رجوع
+            {t("back")}
           </Link>
           <div className="title" style={{ marginInlineStart: 8 }}>
             {app ? app.app_name : "..."}
@@ -69,7 +69,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
             className="btn"
             onClick={() => load().catch((e) => setError(e.message))}
           >
-            تحديث
+            {t("refresh")}
           </button>
         </div>
       </div>
@@ -79,7 +79,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
       ) : null}
 
       {app?.description ? (
-        <div className="card" style={{ boxShadow: "none", marginTop: 10 }}>
+        <div className="card cardSubtle" style={{ marginTop: 10 }}>
           <div className="muted" style={{ fontWeight: 900 }}>
             {t("appDescription")}
           </div>
@@ -91,23 +91,23 @@ export function AdminAppDetailPage({ token }: { token: string }) {
 
       <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
         {versions.map((v) => (
-          <div key={v.id} className="card" style={{ boxShadow: "none" }}>
+          <div key={v.id} className="card cardSubtle">
             <div className="row" style={{ justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontWeight: 800 }}>{v.version_number}</div>
               </div>
               <div className="row">
                 <Link className="btn btnPrimary" to={`/versions/${v.id}`}>
-                  تفاصيل التحميلات
+                  {t("downloadsDetails")}
                 </Link>
                 <button className="btn" onClick={() => setEditOpen(v)}>
-                  تعديل
+                  {t("edit")}
                 </button>
                 <button
                   className="btn btnWarning"
                   onClick={() => setDeleteOpen(v)}
                 >
-                  حذف
+                  {t("delete")}
                 </button>
               </div>
             </div>
@@ -130,7 +130,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
         >
           <div className="grid">
             <label className="field">
-              <div className="muted">ملف التطبيق (exe/msi...)</div>
+              <div className="muted">{t("appBinaryFile")}</div>
               <input
                 className="input"
                 type="file"
@@ -154,7 +154,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
               />
             </label>
             <label className="field">
-              <div className="muted">تغيير الشعار مع هذا الإصدار (اختياري)</div>
+              <div className="muted">{t("changeLogoWithVersionOptional")}</div>
               <input
                 className="input"
                 type="file"
@@ -167,9 +167,9 @@ export function AdminAppDetailPage({ token }: { token: string }) {
                 className="btn btnPrimary"
                 onClick={async () => {
                   try {
-                    if (!binaryFile) throw new Error("اختر ملف التطبيق");
+                    if (!binaryFile) throw new Error(t("chooseAppFile"));
                     if (!versionNumber.trim())
-                      throw new Error("رقم الإصدار مطلوب");
+                      throw new Error(t("versionNumberRequired"));
                     setModalError(null);
                     await api.adminUploadVersion(token, appId, {
                       file: binaryFile,
@@ -186,7 +186,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
                   }
                 }}
               >
-                رفع
+                {t("upload")}
               </button>
             </div>
           </div>
@@ -195,7 +195,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
 
       {editOpen ? (
         <Modal
-          title={`تعديل الإصدار: ${editOpen.version_number}`}
+          title={t("editVersionTitle", { version: editOpen.version_number })}
           onClose={() => {
             setEditOpen(null);
             setModalError(null);
@@ -242,7 +242,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
                   }
                 }}
               >
-                حفظ
+                {t("save")}
               </button>
             </div>
           </div>
@@ -251,7 +251,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
 
       {deleteOpen ? (
         <Modal
-          title={`حذف الإصدار: ${deleteOpen.version_number}`}
+          title={t("deleteVersionTitle", { version: deleteOpen.version_number })}
           onClose={() => {
             setDeleteOpen(null);
             setModalError(null);
@@ -259,10 +259,10 @@ export function AdminAppDetailPage({ token }: { token: string }) {
           error={modalError}
         >
           <div className="grid">
-            <div className="muted">هل أنت متأكد من حذف هذا الإصدار؟</div>
+            <div className="muted">{t("deleteVersionConfirm")}</div>
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setDeleteOpen(null)}>
-                إلغاء
+                {t("cancel")}
               </button>
               <button
                 className="btn btnWarning"
@@ -278,7 +278,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
                   }
                 }}
               >
-                حذف
+                {t("delete")}
               </button>
             </div>
           </div>

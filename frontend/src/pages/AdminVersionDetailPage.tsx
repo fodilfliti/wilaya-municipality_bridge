@@ -79,8 +79,8 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
   if (!versionId) {
     return (
       <div className="card">
-        <div className="title">إصدار</div>
-        <div className="muted">Version ID غير صحيح</div>
+        <div className="title">{t('version')}</div>
+        <div className="muted">{t('invalidVersionId')}</div>
       </div>
     )
   }
@@ -90,7 +90,7 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="row">
           <Link className="btn" to={version?.app?.id ? `/apps/${version.app.id}` : '/apps'}>
-            رجوع
+            {t('back')}
           </Link>
           <div className="title" style={{ marginInlineStart: 8 }}>
             {version ? `${version.app?.app_name || 'App'} — ${version.version_number}` : '...'}
@@ -113,7 +113,7 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
             {t('pdfReport')}
           </button>
           <button className="btn" onClick={() => load().catch((e) => setError(e.message))}>
-            تحديث
+            {t('refresh')}
           </button>
         </div>
       </div>
@@ -121,7 +121,7 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
       {error ? <ErrorPopup message={error} onClose={() => setError(null)} /> : null}
 
       {version?.release_notes ? (
-        <div className="card" style={{ boxShadow: 'none', marginTop: 10 }}>
+        <div className="card cardSubtle" style={{ marginTop: 10 }}>
           <div style={{ fontWeight: 900 }}>{t('releaseNotesTitle')}</div>
           <div className="muted" style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>
             {version.release_notes}
@@ -130,20 +130,20 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
       ) : null}
 
       {summary ? (
-        <div className="card" style={{ boxShadow: 'none', marginTop: 10 }}>
+        <div className="card cardSubtle" style={{ marginTop: 10 }}>
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <div className="row">
               <DonutChart
                 value={summary.downloaded_municipalities}
                 total={summary.total_municipalities}
                 progressColor="var(--success)"
-                label="نسبة التحميل"
+                label={t('downloadRate')}
               />
             </div>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
-              <div className="statusPill stNo">المجموع: {summary.total_municipalities}</div>
-              <div className="statusPill stUp">حمّلت: {summary.downloaded_municipalities}</div>
-              <div className="statusPill stNever">لم يحمّل: {summary.not_downloaded_municipalities}</div>
+              <div className="statusPill stNo">{t('total')}: {summary.total_municipalities}</div>
+              <div className="statusPill stUp">{t('downloaded')}: {summary.downloaded_municipalities}</div>
+              <div className="statusPill stNever">{t('notDownloaded')}: {summary.not_downloaded_municipalities}</div>
             </div>
           </div>
         </div>
@@ -155,14 +155,14 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
 
       <div className="card" style={{ marginTop: 12 }}>
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <div style={{ fontWeight: 900 }}>الفلترة والنتائج</div>
-          <div className="chip">فلترة النتائج تظهر مباشرة</div>
+          <div style={{ fontWeight: 900 }}>{t('filtersAndResults')}</div>
+          <div className="chip">{t('filtersLiveHint')}</div>
         </div>
 
-        <div className="card" style={{ boxShadow: 'none', marginTop: 12 }}>
+        <div className="card cardSubtle" style={{ marginTop: 12 }}>
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <label className="field" style={{ minWidth: 280 }}>
-              <div className="muted">اختيار بلدية (فلتر)</div>
+              <div className="muted">{t('selectMunicipalityFilter')}</div>
               <select
                 className="input"
                 value={selectedMuniId === '' ? '' : String(selectedMuniId)}
@@ -173,7 +173,7 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
                   load({ search: muni?.code || '' }).catch((err) => setError(err.message))
                 }}
               >
-                <option value="">كل البلديات</option>
+                <option value="">{t('allMunicipalities')}</option>
                 {municipalities.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name_ar} — {m.code}
@@ -183,7 +183,7 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
             </label>
 
             <label className="field" style={{ minWidth: 240 }}>
-              <div className="muted">الحالة</div>
+              <div className="muted">{t('status')}</div>
               <select
                 className="input"
                 value={status}
@@ -194,9 +194,9 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
                   setStatus(st)
                 }}
               >
-                <option value="ALL">الكل</option>
-                <option value="DOWNLOADED">حمّلت</option>
-                <option value="NOT_DOWNLOADED">لم يحمّل بعد</option>
+                <option value="ALL">{t('all')}</option>
+                <option value="DOWNLOADED">{t('downloaded')}</option>
+                <option value="NOT_DOWNLOADED">{t('notDownloadedYet')}</option>
               </select>
             </label>
 
@@ -206,7 +206,7 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
 
         <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
           {rows.map((r) => (
-            <div key={r.municipality.id} className="card" style={{ boxShadow: 'none' }}>
+            <div key={r.municipality.id} className="card cardSubtle">
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontWeight: 900 }}>{r.municipality.name_ar}</div>
@@ -214,20 +214,24 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
                     {r.municipality.name_fr} — {r.municipality.code}
                   </div>
                   <div className="muted">
-                    الحالة: {r.has_downloaded ? 'حمّل' : 'لم يحمّل'} — آخر تحميل:{' '}
-                    {r.last_download_at ? new Date(r.last_download_at).toLocaleString() : '—'}
+                    {t('rowStatusLastDownload', {
+                      status: r.has_downloaded ? t('downloaded') : t('notDownloaded'),
+                      timestamp: r.last_download_at ? new Date(r.last_download_at).toLocaleString() : '—',
+                    })}
                   </div>
                 </div>
                 <div className="row">
-                  <div className={r.has_downloaded ? 'statusPill stUp' : 'statusPill stNever'}>التحميلات: {r.downloads_count}</div>
+                  <div className={r.has_downloaded ? 'statusPill stUp' : 'statusPill stNever'}>
+                    {t('downloadsCount', { count: r.downloads_count })}
+                  </div>
                   <Link className="btn btnPrimary" to={`/municipalities/${r.municipality.id}`}>
-                    التفاصيل
+                    {t('details')}
                   </Link>
                 </div>
               </div>
             </div>
           ))}
-          {rows.length === 0 ? <div className="muted">لا توجد نتائج.</div> : null}
+          {rows.length === 0 ? <div className="muted">{t('noResults')}</div> : null}
         </div>
       </div>
     </div>

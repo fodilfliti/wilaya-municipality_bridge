@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 import * as api from '../api'
 import { Modal } from '../components/Modal'
 
 export function AdminMunicipalitiesListPage({ token }: { token: string }) {
+  const { t } = useTranslation()
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const pageSize = 10
@@ -21,28 +23,27 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
   const [nameFr, setNameFr] = useState('')
   const [code, setCode] = useState('')
 
-  async function load() {
+  const load = useCallback(async () => {
     setError(null)
     const res = await api.adminListMunicipalities(token, { page, pageSize })
     setItems(res.municipalities)
     setTotal(res.total)
-  }
+  }, [page, pageSize, token])
 
   useEffect(() => {
-    load().catch((e) => setError(e.message))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+    load().catch((e: any) => setError(e.message))
+  }, [load])
 
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div className="title">البلديات</div>
+        <div className="title">{t('navMunicipalities')}</div>
         <div className="row">
           <button className="btn btnPrimary" onClick={() => setCreateOpen(true)}>
-            + إضافة بلدية
+            + {t('createMunicipality')}
           </button>
           <button className="btn" onClick={() => load().catch((e) => setError(e.message))}>
-            تحديث
+            {t('refresh')}
           </button>
         </div>
       </div>
@@ -51,7 +52,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
 
       <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
         {items.map((m) => (
-          <div key={m.id} className="card" style={{ boxShadow: 'none' }}>
+          <div key={m.id} className="card cardSubtle">
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontWeight: 900 }}>{m.name_ar}</div>
@@ -61,38 +62,38 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
               </div>
               <div className="row">
                 <Link className="btn" to={`/municipalities/${m.id}`}>
-                  تفاصيل
+                  {t('details')}
                 </Link>
                 <button className="btn" onClick={() => setEditMuni(m)}>
-                  تعديل
+                  {t('edit')}
                 </button>
                 <button className="btn btnWarning" onClick={() => setDeleteMuni(m)}>
-                  حذف
+                  {t('delete')}
                 </button>
               </div>
             </div>
           </div>
         ))}
-        {items.length === 0 ? <div className="muted">لا توجد بلديات.</div> : null}
+        {items.length === 0 ? <div className="muted">{t('noMunicipalities')}</div> : null}
       </div>
 
       <div className="row" style={{ justifyContent: 'space-between', marginTop: 12 }}>
         <div className="muted">
-          صفحة {page} / {totalPages} — المجموع {total}
+          {t('paginationSummary', { page, totalPages, total })}
         </div>
         <div className="row">
           <button className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            السابق
+            {t('prev')}
           </button>
           <button className="btn" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
-            التالي
+            {t('next')}
           </button>
         </div>
       </div>
 
       {createOpen ? (
         <Modal
-          title="إضافة بلدية"
+          title={t('createMunicipality')}
           onClose={() => {
             setCreateOpen(false)
             setNameAr('')
@@ -102,15 +103,15 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
         >
           <div className="grid">
             <label className="field">
-              <div className="muted">اسم البلدية (عربي)</div>
+              <div className="muted">{t('municipalityNameAr')}</div>
               <input className="input" value={nameAr} onChange={(e) => setNameAr(e.target.value)} />
             </label>
             <label className="field">
-              <div className="muted">اسم البلدية (فرنسي)</div>
+              <div className="muted">{t('municipalityNameFr')}</div>
               <input className="input" value={nameFr} onChange={(e) => setNameFr(e.target.value)} />
             </label>
             <label className="field">
-              <div className="muted">رمز البلدية</div>
+              <div className="muted">{t('municipalityCode')}</div>
               <input className="input" value={code} onChange={(e) => setCode(e.target.value)} />
             </label>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
@@ -118,7 +119,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
                 className="btn btnPrimary"
                 onClick={async () => {
                   try {
-                    if (!nameAr.trim() || !nameFr.trim() || !code.trim()) throw new Error('كل الحقول مطلوبة')
+                    if (!nameAr.trim() || !nameFr.trim() || !code.trim()) throw new Error(t('allFieldsRequired'))
                     setError(null)
                     await api.adminCreateMunicipality(token, { name_ar: nameAr.trim(), name_fr: nameFr.trim(), code: code.trim() })
                     setCreateOpen(false)
@@ -131,7 +132,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
                   }
                 }}
               >
-                حفظ
+                {t('save')}
               </button>
             </div>
           </div>
@@ -140,7 +141,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
 
       {editMuni ? (
         <Modal
-          title={`تعديل البلدية: ${editMuni.name_ar}`}
+          title={t('editMunicipalityTitle', { name: editMuni.name_ar })}
           onClose={() => {
             setEditMuni(null)
             setNameAr('')
@@ -150,15 +151,15 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
         >
           <div className="grid">
             <label className="field">
-              <div className="muted">اسم البلدية (عربي)</div>
+              <div className="muted">{t('municipalityNameAr')}</div>
               <input className="input" defaultValue={editMuni.name_ar} onChange={(e) => setNameAr(e.target.value)} />
             </label>
             <label className="field">
-              <div className="muted">اسم البلدية (فرنسي)</div>
+              <div className="muted">{t('municipalityNameFr')}</div>
               <input className="input" defaultValue={editMuni.name_fr} onChange={(e) => setNameFr(e.target.value)} />
             </label>
             <label className="field">
-              <div className="muted">رمز البلدية</div>
+              <div className="muted">{t('municipalityCode')}</div>
               <input className="input" defaultValue={editMuni.code} onChange={(e) => setCode(e.target.value)} />
             </label>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
@@ -182,7 +183,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
                   }
                 }}
               >
-                حفظ
+                {t('save')}
               </button>
             </div>
           </div>
@@ -190,12 +191,12 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
       ) : null}
 
       {deleteMuni ? (
-        <Modal title={`حذف البلدية: ${deleteMuni.name_ar}`} onClose={() => setDeleteMuni(null)}>
+        <Modal title={t('deleteMunicipalityTitle', { name: deleteMuni.name_ar })} onClose={() => setDeleteMuni(null)}>
           <div className="grid">
-            <div className="muted">هل أنت متأكد؟ سيتم حذف البلدية.</div>
+            <div className="muted">{t('deleteMunicipalityConfirm')}</div>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setDeleteMuni(null)}>
-                إلغاء
+                {t('cancel')}
               </button>
               <button
                 className="btn btnWarning"
@@ -210,7 +211,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
                   }
                 }}
               >
-                حذف
+                {t('delete')}
               </button>
             </div>
           </div>
