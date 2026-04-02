@@ -400,6 +400,7 @@ adminRouter.get("/versions/:versionId/municipalities", async (req, res, next) =>
       version: {
         id: version.id,
         version_number: version.version_number,
+        release_notes: version.release_notes || null,
         app: version.Application ? { id: version.Application.id, app_name: version.Application.app_name } : null
       },
       municipalities: pageRows,
@@ -512,6 +513,7 @@ adminRouter.get("/versions/:versionId/progress", async (req, res, next) => {
       version: {
         id: version.id,
         version_number: version.version_number,
+        release_notes: version.release_notes || null,
         app: version.Application ? { id: version.Application.id, app_name: version.Application.app_name } : null
       },
       summary: {

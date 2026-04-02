@@ -9,6 +9,7 @@ type VersionSummary = {
   id: number
   version_number: string
   app: { id: number; app_name: string } | null
+  release_notes?: string | null
 }
 
 type MunicipalitySummary = {
@@ -118,6 +119,15 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
       </div>
 
       {error ? <ErrorPopup message={error} onClose={() => setError(null)} /> : null}
+
+      {version?.release_notes ? (
+        <div className="card" style={{ boxShadow: 'none', marginTop: 10 }}>
+          <div style={{ fontWeight: 900 }}>{t('releaseNotesTitle')}</div>
+          <div className="muted" style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>
+            {version.release_notes}
+          </div>
+        </div>
+      ) : null}
 
       {summary ? (
         <div className="card" style={{ boxShadow: 'none', marginTop: 10 }}>

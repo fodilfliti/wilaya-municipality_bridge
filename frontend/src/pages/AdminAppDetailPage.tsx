@@ -78,6 +78,17 @@ export function AdminAppDetailPage({ token }: { token: string }) {
         <ErrorPopup message={error} onClose={() => setError(null)} />
       ) : null}
 
+      {app?.description ? (
+        <div className="card" style={{ boxShadow: "none", marginTop: 10 }}>
+          <div className="muted" style={{ fontWeight: 900 }}>
+            {t("appDescription")}
+          </div>
+          <div className="muted" style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>
+            {app.description}
+          </div>
+        </div>
+      ) : null}
+
       <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
         {versions.map((v) => (
           <div key={v.id} className="card" style={{ boxShadow: "none" }}>
@@ -100,11 +111,6 @@ export function AdminAppDetailPage({ token }: { token: string }) {
                 </button>
               </div>
             </div>
-            {v.release_notes ? (
-              <div className="muted" style={{ marginTop: 8 }}>
-                {v.release_notes}
-              </div>
-            ) : null}
           </div>
         ))}
         {versions.length === 0 ? (

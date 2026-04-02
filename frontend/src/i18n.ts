@@ -69,6 +69,7 @@ const resources = {
       uploadVersion: 'رفع إصدار جديد',
       versionNumber: 'رقم الإصدار (مثال: v1.2.0)',
       releaseNotes: 'ملاحظات الإصدار (اختياري)',
+      releaseNotesTitle: 'ما الجديد في هذا الإصدار',
       chooseFile: 'اختر ملفاً',
       submit: 'إرسال',
       pdfReport: 'تقرير PDF'
@@ -141,6 +142,7 @@ const resources = {
       uploadVersion: 'Téléverser une version',
       versionNumber: 'Numéro de version (ex: v1.2.0)',
       releaseNotes: 'Notes de version (optionnel)',
+      releaseNotesTitle: 'Nouveautés de cette version',
       chooseFile: 'Choisir un fichier',
       submit: 'Envoyer',
       pdfReport: 'Rapport PDF'
