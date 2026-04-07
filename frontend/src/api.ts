@@ -1,6 +1,12 @@
 export type LoginResponse = {
   token: string
-  user: { id: number; username: string; role: 'SUPER_ADMIN' | 'MUNI_ADMIN'; municipality_id: number | null }
+  user: {
+    id: number
+    username: string
+    name: string | null
+    role: 'SUPER_ADMIN' | 'MUNI_ADMIN'
+    municipality_id: number | null
+  }
 }
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
@@ -72,7 +78,7 @@ export async function adminMunicipalityOverview(token: string, municipalityId: n
   return http<{ municipality: any; apps: any[] }>(`/admin/municipalities/${municipalityId}/overview`, { method: 'GET', token })
 }
 
-export async function adminCreateMuniUser(token: string, municipalityId: number, body: { username?: string }) {
+export async function adminCreateMuniUser(token: string, municipalityId: number, body: { username?: string; name?: string }) {
   return http<{ user: any; credentials: { code8: string; pdf_url: string } }>(
     `/admin/municipalities/${municipalityId}/users`,
     { method: 'POST', token, body: JSON.stringify(body) },
@@ -230,5 +236,167 @@ export async function muniDownload(token: string, version_id: number) {
 
 export async function muniChangeCode(token: string, body: { current_code: string; new_code: string }) {
   return http<{ success: boolean }>('/muni/me/change-code', { method: 'POST', token, body: JSON.stringify(body) })
+}
+
+export async function adminUserSearch(token: string, q: string) {
+  const qq = encodeURIComponent(q || '')
+  return http<{
+    users: {
+      id: number
+      username: string
+      name: string | null
+      role: 'SUPER_ADMIN' | 'MUNI_ADMIN'
+      municipality_id: number | null
+      municipality: any | null
+    }[]
+  }>(`/admin/users/search?q=${qq}`, { method: 'GET', token })
+}
+
+export type MailThreadListItem = {
+  id: number
+  subject: string
+  last_message_at: string
+  created_at: string
+  recipient_kind: 'DIRECT_USER' | 'MUNICIPALITY_TARGET' | 'ALL_MUNICIPALITIES'
+  recipient_municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+  created_by: { id: number; username: string; name: string | null; role: 'SUPER_ADMIN' | 'MUNI_ADMIN' } | null
+  created_by_municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+  unread: boolean
+}
+
+export async function adminMailThreads(
+  token: string,
+  opts: { page?: number; pageSize?: number; q?: string; unread?: 0 | 1 } = {},
+) {
+  const page = opts.page ?? 1
+  const pageSize = opts.pageSize ?? 20
+  const q = opts.q ? encodeURIComponent(opts.q) : ''
+  const unread = opts.unread ?? 0
+  const qs = [`page=${page}`, `pageSize=${pageSize}`, q ? `q=${q}` : '', `unread=${unread}`].filter(Boolean).join('&')
+  return http<{ threads: MailThreadListItem[]; total: number; page: number; pageSize: number }>(`/admin/mail/threads?${qs}`, {
+    method: 'GET',
+    token,
+  })
+}
+
+export async function adminMailUnreadCount(token: string) {
+  return http<{ unread: number }>(`/admin/mail/unread-count`, { method: 'GET', token })
+}
+
+export async function adminMailThread(token: string, threadId: number) {
+  return http<{ thread: any; messages: any[]; my_recipient: any }>(`/admin/mail/threads/${threadId}`, { method: 'GET', token })
+}
+
+export async function adminMailRecipients(token: string, threadId: number) {
+  return http<{ recipients: any[] }>(`/admin/mail/threads/${threadId}/recipients`, { method: 'GET', token })
+}
+
+export async function adminMailCreateThread(
+  token: string,
+  opts: {
+    subject: string
+    body_html: string
+    target: { type: 'ALL_COMMUNES' } | { type: 'COMMUNES'; municipality_ids: number[] } | { type: 'USERS'; user_ids: number[] }
+    attachments?: File[]
+  },
+) {
+  const fd = new FormData()
+  fd.append('subject', opts.subject)
+  fd.append('body_html', opts.body_html)
+  fd.append('target', JSON.stringify(opts.target))
+  for (const f of opts.attachments || []) fd.append('attachments', f)
+
+  const res = await fetch(`${API_URL}/admin/mail/threads`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  return data as { thread_ids: number[] }
+}
+
+export async function adminMailReply(
+  token: string,
+  threadId: number,
+  opts: { body_html: string; attachments?: File[]; reply_to_message_id?: number | null },
+) {
+  const fd = new FormData()
+  fd.append('body_html', opts.body_html)
+  if (opts.reply_to_message_id) fd.append('reply_to_message_id', String(opts.reply_to_message_id))
+  for (const f of opts.attachments || []) fd.append('attachments', f)
+
+  const res = await fetch(`${API_URL}/admin/mail/threads/${threadId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  return data as { message: any }
+}
+
+export async function muniMailThreads(
+  token: string,
+  opts: { page?: number; pageSize?: number; q?: string; unread?: 0 | 1 } = {},
+) {
+  const page = opts.page ?? 1
+  const pageSize = opts.pageSize ?? 20
+  const q = opts.q ? encodeURIComponent(opts.q) : ''
+  const unread = opts.unread ?? 0
+  const qs = [`page=${page}`, `pageSize=${pageSize}`, q ? `q=${q}` : '', `unread=${unread}`].filter(Boolean).join('&')
+  return http<{ threads: MailThreadListItem[]; total: number; page: number; pageSize: number }>(`/muni/mail/threads?${qs}`, {
+    method: 'GET',
+    token,
+  })
+}
+
+export async function muniMailUnreadCount(token: string) {
+  return http<{ unread: number }>(`/muni/mail/unread-count`, { method: 'GET', token })
+}
+
+export async function muniMailThread(token: string, threadId: number) {
+  return http<{ thread: any; messages: any[]; my_recipient: any }>(`/muni/mail/threads/${threadId}`, { method: 'GET', token })
+}
+
+export async function muniMailReply(
+  token: string,
+  threadId: number,
+  opts: { body_html: string; attachments?: File[]; reply_to_message_id?: number | null },
+) {
+  const fd = new FormData()
+  fd.append('body_html', opts.body_html)
+  if (opts.reply_to_message_id) fd.append('reply_to_message_id', String(opts.reply_to_message_id))
+  for (const f of opts.attachments || []) fd.append('attachments', f)
+
+  const res = await fetch(`${API_URL}/muni/mail/threads/${threadId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  return data as { message: any }
+}
+
+export async function muniMailPrivateReply(
+  token: string,
+  threadId: number,
+  opts: { subject?: string; body_html: string; attachments?: File[]; parent_message_id?: number | null },
+) {
+  const fd = new FormData()
+  if (opts.subject) fd.append('subject', opts.subject)
+  fd.append('body_html', opts.body_html)
+  if (opts.parent_message_id) fd.append('parent_message_id', String(opts.parent_message_id))
+  for (const f of opts.attachments || []) fd.append('attachments', f)
+
+  const res = await fetch(`${API_URL}/muni/mail/threads/${threadId}/private-reply`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  return data as { thread: any }
 }
 

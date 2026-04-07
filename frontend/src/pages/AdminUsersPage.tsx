@@ -35,6 +35,7 @@ export function AdminUsersPage({ token }: { token: string }) {
   const [unblockUser, setUnblockUser] = useState<any | null>(null);
 
   const [optUsername, setOptUsername] = useState("");
+  const [optName, setOptName] = useState("");
   const [createdCreds, setCreatedCreds] = useState<{
     code8: string;
     pdf_url: string;
@@ -182,7 +183,10 @@ export function AdminUsersPage({ token }: { token: string }) {
           <div key={u.id} className="card cardSubtle">
             <div className="row" style={{ justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontWeight: 900 }}>{u.username}</div>
+                <div style={{ fontWeight: 900 }}>{u.name || u.username}</div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  @{u.username}
+                </div>
                 <div className="muted">{u.is_blocked ? t("blocked") : t("active")}</div>
               </div>
               <div className="row">
@@ -247,11 +251,16 @@ export function AdminUsersPage({ token }: { token: string }) {
             setCreateOpen(false);
             setModalError(null);
             setOptUsername("");
+            setOptName("");
           }}
           error={modalError}
         >
           <div className="grid">
             <div className="muted">{t("createUserAutoHint")}</div>
+            <label className="field">
+              <div className="muted">{t("name")}</div>
+              <input className="input" value={optName} onChange={(e) => setOptName(e.target.value)} />
+            </label>
             <label className="field">
               <div className="muted">{t("optionalUsername")}</div>
               <input
@@ -271,11 +280,12 @@ export function AdminUsersPage({ token }: { token: string }) {
                     const res = await api.adminCreateMuniUser(
                       token,
                       municipalityId as number,
-                      { username: optUsername || undefined },
+                      { name: optName.trim() || undefined, username: optUsername || undefined },
                     );
                     setCreatedCreds(res.credentials);
                     setCreateOpen(false);
                     setOptUsername("");
+                    setOptName("");
                     setModalError(null);
                     await load();
                   } catch (e: any) {

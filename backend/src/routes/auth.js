@@ -26,7 +26,10 @@ authRouter.post("/login", async (req, res, next) => {
       expiresIn: "12h"
     });
 
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role, municipality_id: user.municipality_id } });
+    res.json({
+      token,
+      user: { id: user.id, username: user.username, name: user.name, role: user.role, municipality_id: user.municipality_id }
+    });
   } catch (e) {
     next(e);
   }

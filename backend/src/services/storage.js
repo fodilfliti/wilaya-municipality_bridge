@@ -16,6 +16,7 @@ function ensureStorageDirs() {
   ensureDir(path.join(root, "binaries"));
   ensureDir(path.join(root, "logos"));
   ensureDir(path.join(root, "pdf"));
+  ensureDir(path.join(root, "mail"));
 }
 
 function publicFileUrl(relativePath) {

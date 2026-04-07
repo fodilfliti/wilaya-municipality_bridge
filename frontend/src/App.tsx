@@ -16,6 +16,8 @@ import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { MuniAppsPage } from "./pages/MuniAppsPage";
 import { LoginModal } from "./components/LoginModal";
 import { ChangeCodeModal } from "./components/ChangeCodeModal";
+import { MailInboxPage } from "./pages/MailInboxPage";
+import { MailThreadPage } from "./pages/MailThreadPage";
 
 function App() {
   const { t, i18n } = useTranslation();
@@ -33,6 +35,7 @@ function App() {
 
   const [progress, setProgress] = useState<any[] | null>(null);
   const [apps, setApps] = useState<any[] | null>(null);
+  const [mailUnread, setMailUnread] = useState<number>(0);
 
   const [changeCodeOpen, setChangeCodeOpen] = useState(false);
 
@@ -90,6 +93,12 @@ function App() {
     setApps(res.apps);
   }, [token]);
 
+  const refreshMailUnread = useCallback(async () => {
+    if (!token || !me) return;
+    const res = isAdmin ? await api.adminMailUnreadCount(token) : await api.muniMailUnreadCount(token);
+    setMailUnread(Number(res.unread || 0));
+  }, [isAdmin, me, token]);
+
   useEffect(() => {
     if (!token || !me) return;
     const handleAuthError = (e: unknown) => {
@@ -106,7 +115,14 @@ function App() {
     }
     if (isAdmin) refreshAdmin().catch(handleAuthError);
     else refreshMuniApps().catch(handleAuthError);
+    refreshMailUnread().catch(() => {});
   }, [isAdmin, me, refreshAdmin, refreshMuniApps, token]);
+
+  useEffect(() => {
+    if (!token || !me) return;
+    const id = window.setInterval(() => refreshMailUnread().catch(() => {}), 20000);
+    return () => window.clearInterval(id);
+  }, [me, refreshMailUnread, token]);
 
   return (
     <div className="container">
@@ -181,6 +197,26 @@ function App() {
           <NavLink to="/users" className="btn">
             {t("navUsers")}
           </NavLink>
+          <NavLink to="/mail" className="btn">
+            <span className="btnLabel">
+              {t("navMail")}
+              {mailUnread > 0 ? <span className="badge">{mailUnread > 99 ? '99+' : mailUnread}</span> : null}
+            </span>
+          </NavLink>
+        </div>
+      )}
+
+      {me && !isAdmin && (
+        <div className="row" style={{ marginBottom: 12 }}>
+          <NavLink to="/" end className="btn">
+            {t("apps")}
+          </NavLink>
+          <NavLink to="/mail" className="btn">
+            <span className="btnLabel">
+              {t("navMail")}
+              {mailUnread > 0 ? <span className="badge">{mailUnread > 99 ? '99+' : mailUnread}</span> : null}
+            </span>
+          </NavLink>
         </div>
       )}
 
@@ -235,6 +271,8 @@ function App() {
                 path="/users"
                 element={<AdminUsersPage token={token!} />}
               />
+              <Route path="/mail" element={<MailInboxPage token={token!} mode="admin" />} />
+              <Route path="/mail/:threadId" element={<MailThreadPage token={token!} mode="admin" />} />
             </>
           ) : (
             <>
@@ -255,6 +293,8 @@ function App() {
                 path="/apps/:appId"
                 element={<MuniAppDetailPage token={token!} />}
               />
+              <Route path="/mail" element={<MailInboxPage token={token!} mode="muni" />} />
+              <Route path="/mail/:threadId" element={<MailThreadPage token={token!} mode="muni" />} />
               <Route
                 path="*"
                 element={

@@ -1,22 +1,39 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
+const path = require("path");
+const crypto = require("crypto");
 
 const { requireAuth, attachUser, checkBlocked, requireRole } = require("../middleware/auth");
 // eslint-disable-next-line no-unused-vars
 const { Op } = require("sequelize");
-const { Application, AppVersion, Download } = require("../db");
+const { Application, AppVersion, Download, MailThread, MailMessage, MailRecipient, MailAttachment, User, Municipality, sequelize } = require("../db");
 const { audit } = require("../services/audit");
 const { withTxAudit } = require("../services/txAudit");
+const { storageRoot, publicFileUrl } = require("../services/storage");
 
 const muniRouter = express.Router();
 
 muniRouter.use(requireAuth, attachUser, checkBlocked, requireRole(["MUNI_ADMIN", "SUPER_ADMIN"]));
+
+const uploadMailAttachments = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(storageRoot(), "mail")),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || "").slice(0, 16) || "";
+      const name = `${Date.now()}_${crypto.randomBytes(8).toString("hex")}${ext}`;
+      cb(null, name);
+    }
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 }
+});
 
 muniRouter.get("/me", (req, res) => {
   res.json({
     user: {
       id: req.user.id,
       username: req.user.username,
+      name: req.user.name,
       role: req.user.role,
       municipality_id: req.user.municipality_id,
       is_blocked: req.user.is_blocked
@@ -218,6 +235,371 @@ muniRouter.get("/downloads", async (req, res, next) => {
     next(e);
   }
 });
+
+async function touchSeenAndRead(req, threadId, transaction) {
+  const rec = await MailRecipient.findOne({ where: { thread_id: threadId, user_id: req.user.id }, transaction });
+  if (!rec) return null;
+
+  const now = new Date();
+  const updates = { last_seen_at: now, last_read_at: now };
+  if (!rec.first_seen_at) updates.first_seen_at = now;
+
+  await rec.update(updates, { transaction });
+
+  if (!rec.first_seen_at) {
+    await audit(req.user.id, "MAIL_THREAD_SEEN", { thread_id: Number(threadId), first_seen_at: now, last_seen_at: now }, { req, transaction });
+  } else {
+    await audit(req.user.id, "MAIL_THREAD_SEEN", { thread_id: Number(threadId), last_seen_at: now }, { req, transaction });
+  }
+  await audit(req.user.id, "MAIL_THREAD_READ", { thread_id: Number(threadId), last_read_at: now }, { req, transaction });
+  return rec;
+}
+
+muniRouter.get("/mail/threads", async (req, res, next) => {
+  try {
+    const page = Number(req.query.page || 1);
+    const pageSize = Math.min(Number(req.query.pageSize || 20), 50);
+    const offset = (page - 1) * pageSize;
+    const q = String(req.query.q || "").trim();
+    const unreadOnly = String(req.query.unread || "0") === "1";
+
+    const whereThread = q ? { subject: { [Op.iLike]: `%${q}%` } } : {};
+    const whereRecipient = { user_id: req.user.id };
+    if (unreadOnly) {
+      whereRecipient[Op.and] = [
+        sequelize.literal(
+          `("mail_recipients"."last_read_at" IS NULL OR "mail_recipients"."last_read_at" < "thread"."last_message_at")`
+        )
+      ];
+    }
+
+    const { rows, count } = await MailRecipient.findAndCountAll({
+      where: whereRecipient,
+      include: [
+        {
+          model: MailThread,
+          as: "thread",
+          where: whereThread,
+          required: true,
+          include: [
+            { model: Municipality, as: "createdByMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] },
+            { model: User, as: "createdByUser", attributes: ["id", "username", "name", "role", "municipality_id"] }
+          ]
+        },
+        { model: Municipality, as: "recipientMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] }
+      ],
+      order: [[{ model: MailThread, as: "thread" }, "last_message_at", "DESC"]],
+      offset,
+      limit: pageSize
+    });
+
+    const threads = rows.map((r) => {
+      const t = r.thread;
+      const unread = !r.last_read_at || new Date(r.last_read_at).getTime() < new Date(t.last_message_at).getTime();
+      return {
+        id: t.id,
+        subject: t.subject,
+        last_message_at: t.last_message_at,
+        created_at: t.created_at,
+        recipient_kind: r.recipient_kind,
+        recipient_municipality: r.recipientMunicipality
+          ? {
+              id: r.recipientMunicipality.id,
+              code: r.recipientMunicipality.code,
+              name_ar: r.recipientMunicipality.name_ar,
+              name_fr: r.recipientMunicipality.name_fr
+            }
+          : null,
+        created_by: t.createdByUser
+          ? { id: t.createdByUser.id, username: t.createdByUser.username, name: t.createdByUser.name, role: t.createdByUser.role }
+          : null,
+        created_by_municipality: t.createdByMunicipality
+          ? { id: t.createdByMunicipality.id, code: t.createdByMunicipality.code, name_ar: t.createdByMunicipality.name_ar, name_fr: t.createdByMunicipality.name_fr }
+          : null,
+        unread
+      };
+    });
+
+    res.json({ threads, total: count, page, pageSize });
+  } catch (e) {
+    next(e);
+  }
+});
+
+muniRouter.get("/mail/unread-count", async (req, res, next) => {
+  try {
+    const out = await sequelize.query(
+      `
+      SELECT COUNT(*)::bigint AS c
+      FROM mail_recipients r
+      JOIN mail_threads t ON t.id = r.thread_id
+      WHERE r.user_id = :uid
+        AND (r.last_read_at IS NULL OR r.last_read_at < t.last_message_at)
+      `,
+      { replacements: { uid: req.user.id }, type: require("sequelize").QueryTypes.SELECT }
+    );
+    const c = out?.[0]?.c ?? 0;
+    res.json({ unread: Number(c) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+muniRouter.get("/mail/threads/:threadId", async (req, res, next) => {
+  try {
+    const threadId = Number(req.params.threadId);
+    if (!threadId) return res.status(400).json({ error: "Invalid threadId" });
+
+    const rec = await MailRecipient.findOne({ where: { thread_id: threadId, user_id: req.user.id } });
+    if (!rec) return res.status(403).json({ error: "Forbidden" });
+
+    const thread = await MailThread.findByPk(threadId, {
+      include: [
+        { model: Municipality, as: "createdByMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] },
+        { model: User, as: "createdByUser", attributes: ["id", "username", "name", "role", "municipality_id"] },
+        { model: MailThread, as: "parentThread", attributes: ["id", "subject"] },
+        {
+          model: MailMessage,
+          as: "parentMessage",
+          attributes: ["id", "created_at", "body_html"],
+          include: [
+            { model: User, as: "authorUser", attributes: ["id", "username", "name", "role", "municipality_id"] },
+            { model: Municipality, as: "authorMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] }
+          ]
+        }
+      ]
+    });
+    if (!thread) return res.status(404).json({ error: "Thread not found" });
+
+    const messages = await MailMessage.findAll({
+      where: { thread_id: threadId },
+      include: [
+        { model: User, as: "authorUser", attributes: ["id", "username", "name", "role", "municipality_id"] },
+        { model: Municipality, as: "authorMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] },
+        {
+          model: MailMessage,
+          as: "replyToMessage",
+          attributes: ["id", "created_at", "body_html"],
+          include: [
+            { model: User, as: "authorUser", attributes: ["id", "username", "name", "role", "municipality_id"] },
+            { model: Municipality, as: "authorMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] }
+          ]
+        },
+        { model: MailAttachment, as: "attachments" }
+      ],
+      order: [["created_at", "ASC"], ["id", "ASC"]]
+    });
+
+    await sequelize.transaction(async (transaction) => {
+      await touchSeenAndRead(req, threadId, transaction);
+    });
+
+    res.json({
+      thread,
+      messages,
+      my_recipient: {
+        recipient_kind: rec.recipient_kind,
+        recipient_municipality_id: rec.recipient_municipality_id
+      }
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+muniRouter.post("/mail/threads/:threadId/messages", uploadMailAttachments.array("attachments", 10), async (req, res, next) => {
+  try {
+    const threadId = Number(req.params.threadId);
+    if (!threadId) return res.status(400).json({ error: "Invalid threadId" });
+    const body_html = String(req.body?.body_html || "").trim();
+    if (!body_html) return res.status(400).json({ error: "body_html is required" });
+    const reply_to_message_id = req.body?.reply_to_message_id ? Number(req.body.reply_to_message_id) : null;
+
+    const rec = await MailRecipient.findOne({ where: { thread_id: threadId, user_id: req.user.id } });
+    if (!rec) return res.status(403).json({ error: "Forbidden" });
+
+    // Enforce: replies must include wilaya admins; group threads are allowed.
+    if (req.user.role === "MUNI_ADMIN") {
+      const allRecipients = await MailRecipient.findAll({
+        where: { thread_id: threadId },
+        include: [{ model: User, as: "user", attributes: ["id", "role", "municipality_id"] }]
+      });
+
+      const hasSuperAdmin = allRecipients.some((r) => r.user?.role === "SUPER_ADMIN");
+      if (!hasSuperAdmin) return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const attachments = req.files || [];
+
+    const result = await sequelize.transaction(async (transaction) => {
+      if (reply_to_message_id) {
+        const parent = await MailMessage.findOne({ where: { id: reply_to_message_id, thread_id: threadId }, transaction });
+        if (!parent) throw Object.assign(new Error("Invalid reply_to_message_id"), { status: 400 });
+      }
+
+      const msg = await MailMessage.create(
+        {
+          thread_id: threadId,
+          author_user_id: req.user.id,
+          author_municipality_id: req.user.role === "MUNI_ADMIN" ? req.user.municipality_id : null,
+          reply_to_message_id: reply_to_message_id || null,
+          body_html,
+          created_at: new Date()
+        },
+        { transaction }
+      );
+
+      if (attachments.length) {
+        for (const f of attachments) {
+          const rel = `mail/${f.filename}`.replace(/\\/g, "/");
+          const url = publicFileUrl(rel);
+          await MailAttachment.create(
+            {
+              message_id: msg.id,
+              filename: String(f.originalname || "file").slice(0, 1024),
+              mime_type: String(f.mimetype || "application/octet-stream").slice(0, 255),
+              size_bytes: Number(f.size || 0),
+              file_url: url,
+              created_at: new Date()
+            },
+            { transaction }
+          );
+          await audit(
+            req.user.id,
+            "MAIL_ATTACHMENT_UPLOAD",
+            { thread_id: threadId, message_id: msg.id, filename: String(f.originalname || ""), size_bytes: Number(f.size || 0) },
+            { req, transaction }
+          );
+        }
+      }
+
+      await MailThread.update({ last_message_at: new Date() }, { where: { id: threadId }, transaction });
+      await touchSeenAndRead(req, threadId, transaction);
+      await audit(req.user.id, "MAIL_MESSAGE_CREATE", { thread_id: threadId, message_id: msg.id }, { req, transaction });
+
+      return msg;
+    });
+
+    res.json({ message: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Private reply: create a NEW thread to wilaya admins only (like "reply privately")
+muniRouter.post(
+  "/mail/threads/:threadId/private-reply",
+  uploadMailAttachments.array("attachments", 10),
+  async (req, res, next) => {
+    try {
+      const threadId = Number(req.params.threadId);
+      if (!threadId) return res.status(400).json({ error: "Invalid threadId" });
+      const body_html = String(req.body?.body_html || "").trim();
+      if (!body_html) return res.status(400).json({ error: "body_html is required" });
+      const parent_message_id = req.body?.parent_message_id ? Number(req.body.parent_message_id) : null;
+
+      const rec = await MailRecipient.findOne({ where: { thread_id: threadId, user_id: req.user.id } });
+      if (!rec) return res.status(403).json({ error: "Forbidden" });
+
+      const thread = await MailThread.findByPk(threadId);
+      if (!thread) return res.status(404).json({ error: "Thread not found" });
+
+      const superAdmins = await User.findAll({ where: { role: "SUPER_ADMIN" }, attributes: ["id"] });
+      const recipients = [
+        ...superAdmins.map((u) => ({ user_id: Number(u.id), recipient_kind: "DIRECT_USER", recipient_municipality_id: null })),
+        { user_id: Number(req.user.id), recipient_kind: "DIRECT_USER", recipient_municipality_id: req.user.municipality_id || null }
+      ];
+
+      const attachments = req.files || [];
+
+      const out = await sequelize.transaction(async (transaction) => {
+        const now = new Date();
+        const newThread = await MailThread.create(
+          {
+            subject: String(req.body?.subject || `Re (private): ${thread.subject}`).slice(0, 500),
+            created_by_user_id: req.user.id,
+            created_by_municipality_id: req.user.municipality_id || null,
+            parent_thread_id: threadId,
+            parent_message_id: parent_message_id || null,
+            last_message_at: now,
+            created_at: now
+          },
+          { transaction }
+        );
+
+        if (parent_message_id) {
+          const parentMsg = await MailMessage.findOne({ where: { id: parent_message_id, thread_id: threadId }, transaction });
+          if (!parentMsg) throw Object.assign(new Error("Invalid parent_message_id"), { status: 400 });
+        }
+
+        const msg = await MailMessage.create(
+          {
+            thread_id: newThread.id,
+            author_user_id: req.user.id,
+            author_municipality_id: req.user.municipality_id || null,
+            reply_to_message_id: parent_message_id || null,
+            body_html,
+            created_at: now
+          },
+          { transaction }
+        );
+
+        const seen = new Set();
+        for (const r of recipients) {
+          const key = `${Number(r.user_id)}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          await MailRecipient.create(
+            {
+              thread_id: newThread.id,
+              user_id: Number(r.user_id),
+              recipient_kind: r.recipient_kind,
+              recipient_municipality_id: r.recipient_municipality_id ?? null,
+              last_read_at: Number(r.user_id) === Number(req.user.id) ? now : null,
+              first_seen_at: Number(r.user_id) === Number(req.user.id) ? now : null,
+              last_seen_at: Number(r.user_id) === Number(req.user.id) ? now : null,
+              created_at: now
+            },
+            { transaction }
+          );
+        }
+
+        if (attachments.length) {
+          for (const f of attachments) {
+            const rel = `mail/${f.filename}`.replace(/\\/g, "/");
+            const url = publicFileUrl(rel);
+            await MailAttachment.create(
+              {
+                message_id: msg.id,
+                filename: String(f.originalname || "file").slice(0, 1024),
+                mime_type: String(f.mimetype || "application/octet-stream").slice(0, 255),
+                size_bytes: Number(f.size || 0),
+                file_url: url,
+                created_at: now
+              },
+              { transaction }
+            );
+            await audit(
+              req.user.id,
+              "MAIL_ATTACHMENT_UPLOAD",
+              { thread_id: newThread.id, message_id: msg.id, filename: String(f.originalname || ""), size_bytes: Number(f.size || 0) },
+              { req, transaction }
+            );
+          }
+        }
+
+        await audit(req.user.id, "MAIL_THREAD_CREATE", { thread_id: newThread.id, parent_thread_id: threadId, private: true }, { req, transaction });
+        await audit(req.user.id, "MAIL_MESSAGE_CREATE", { thread_id: newThread.id, message_id: msg.id }, { req, transaction });
+
+        return { thread: newThread, message: msg };
+      });
+
+      res.json({ thread: out.thread });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 module.exports = { muniRouter };
 

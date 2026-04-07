@@ -27,10 +27,39 @@ app.use(
   pinoHttp({
     logger,
     genReqId: (req) => req.requestId,
+    autoLogging: {
+      ignore: (req) => req.url === "/health" || req.url.startsWith("/files/")
+    },
     serializers: {
       req(req) {
-        return { id: req.id, method: req.method, url: req.url, remoteAddress: req.remoteAddress, remotePort: req.remotePort };
+        return {
+          id: req.id,
+          method: req.method,
+          url: req.originalUrl || req.url,
+          remoteAddress: req.remoteAddress,
+          remotePort: req.remotePort
+        };
+      },
+      res(res) {
+        return { statusCode: res.statusCode };
       }
+    },
+    customProps: (req) => ({
+      requestId: req.requestId,
+      userId: req.user?.id
+    }),
+    customLogLevel: (req, res, err) => {
+      if (err || res.statusCode >= 500) return "error";
+      if (res.statusCode >= 400) return "warn";
+      return "info";
+    },
+    customSuccessMessage: (req, res) => {
+      const url = req.originalUrl || req.url;
+      return `HTTP ${req.method} ${url} ${res.statusCode}`;
+    },
+    customErrorMessage: (req, res, err) => {
+      const url = req.originalUrl || req.url;
+      return `HTTP ${req.method} ${url} ${res.statusCode} (${err?.message || "error"})`;
     }
   })
 );

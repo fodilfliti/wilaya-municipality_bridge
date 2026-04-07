@@ -6,7 +6,7 @@ const bcrypt = require("bcryptjs");
 
 const { requireAuth, attachUser, checkBlocked, requireRole } = require("../middleware/auth");
 const { Op } = require("sequelize");
-const { Application, AppVersion, Municipality, User, Download } = require("../db");
+const { Application, AppVersion, Municipality, User, Download, MailThread, MailMessage, MailRecipient, MailAttachment, sequelize } = require("../db");
 const { audit } = require("../services/audit");
 const { withTxAudit } = require("../services/txAudit");
 const { storageRoot, publicFileUrl } = require("../services/storage");
@@ -45,6 +45,18 @@ const uploadBinaryWithOptionalLogo = multer({
     }
   }),
   limits: { fileSize: 500 * 1024 * 1024 }
+});
+
+const uploadMailAttachments = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(storageRoot(), "mail")),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || "").slice(0, 16) || "";
+      const name = `${Date.now()}_${crypto.randomBytes(8).toString("hex")}${ext}`;
+      cb(null, name);
+    }
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 }
 });
 
 adminRouter.post("/apps", async (req, res, next) => {
@@ -864,6 +876,7 @@ adminRouter.post("/municipalities/:municipalityId/users", async (req, res, next)
 
     const requestedUsername = (req.body?.username || "").trim();
     const username = requestedUsername || generateUsernameFromMunicipalityCode(muni.code);
+    const requestedName = (req.body?.name || "").trim() || null;
 
     const code8 = generate8DigitCode();
     const password_hash = await bcrypt.hash(code8, 12);
@@ -886,13 +899,14 @@ adminRouter.post("/municipalities/:municipalityId/users", async (req, res, next)
       {
         entity: { type: "User", id: null },
         municipality: { id: muni.id, code: muni.code },
-        after: { username, role: "MUNI_ADMIN", municipality_id: muni.id, is_blocked: false },
+        after: { username, name: requestedName, role: "MUNI_ADMIN", municipality_id: muni.id, is_blocked: false },
         pdf_url: pdf.file_url
       },
       async (transaction) => {
         const user = await User.create(
           {
             username,
+            name: requestedName,
             password_hash,
             role: "MUNI_ADMIN",
             municipality_id: muni.id,
@@ -905,7 +919,7 @@ adminRouter.post("/municipalities/:municipalityId/users", async (req, res, next)
     );
 
     res.json({
-      user: { id: user.id, username: user.username, role: user.role, municipality_id: user.municipality_id },
+      user: { id: user.id, username: user.username, name: user.name, role: user.role, municipality_id: user.municipality_id },
       credentials: { code8, pdf_url: pdf.file_url }
     });
   } catch (e) {
@@ -930,7 +944,14 @@ adminRouter.post("/users/:userId/reset", async (req, res, next) => {
       municipalityCode: muni?.code
     });
 
-    const before = { id: user.id, username: user.username, municipality_id: user.municipality_id, is_blocked: user.is_blocked, role: user.role };
+    const before = {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      municipality_id: user.municipality_id,
+      is_blocked: user.is_blocked,
+      role: user.role
+    };
     await withTxAudit(
       req,
       req.user.id,
@@ -941,7 +962,7 @@ adminRouter.post("/users/:userId/reset", async (req, res, next) => {
       }
     );
 
-    res.json({ user: { id: user.id, username: user.username }, credentials: { code8, pdf_url: pdf.file_url } });
+    res.json({ user: { id: user.id, username: user.username, name: user.name }, credentials: { code8, pdf_url: pdf.file_url } });
   } catch (e) {
     next(e);
   }
@@ -1052,13 +1073,13 @@ adminRouter.get("/municipalities/:municipalityId/history", async (req, res, next
     const muni = await Municipality.findByPk(req.params.municipalityId);
     if (!muni) return res.status(404).json({ error: "Municipality not found" });
 
-    const users = await User.findAll({ where: { municipality_id: muni.id }, attributes: ["id", "username"] });
+    const users = await User.findAll({ where: { municipality_id: muni.id }, attributes: ["id", "username", "name", "is_blocked", "role", "municipality_id"] });
     const userIds = users.map((u) => u.id);
 
     const downloads = userIds.length
       ? await Download.findAll({
           where: { user_id: { [Op.in]: userIds } },
-          include: [{ model: AppVersion, include: [{ model: Application }] }, { model: User, attributes: ["id", "username"] }],
+          include: [{ model: AppVersion, include: [{ model: Application }] }, { model: User, attributes: ["id", "username", "name"] }],
           order: [["timestamp", "DESC"]],
           limit: 200
         })
@@ -1098,6 +1119,533 @@ adminRouter.get("/municipalities/:municipalityId/users", async (req, res, next) 
     });
 
     res.json({ municipality: muni, users: rows, total: count, page, pageSize });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/users/search", async (req, res, next) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    if (!q) return res.json({ users: [] });
+    const users = await User.findAll({
+      where: {
+        [Op.or]: [{ username: { [Op.iLike]: `%${q}%` } }, { name: { [Op.iLike]: `%${q}%` } }]
+      },
+      include: [{ model: Municipality, attributes: ["id", "code", "name_ar", "name_fr"] }],
+      order: [["username", "ASC"]],
+      limit: 20
+    });
+    res.json({
+      users: users.map((u) => ({
+        id: u.id,
+        username: u.username,
+        name: u.name,
+        role: u.role,
+        municipality_id: u.municipality_id,
+        municipality: u.Municipality
+          ? { id: u.Municipality.id, code: u.Municipality.code, name_ar: u.Municipality.name_ar, name_fr: u.Municipality.name_fr }
+          : null
+      }))
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+async function touchSeenAndRead(req, threadId, transaction) {
+  const rec = await MailRecipient.findOne({ where: { thread_id: threadId, user_id: req.user.id }, transaction });
+  if (!rec) return null;
+
+  const now = new Date();
+  const updates = { last_seen_at: now, last_read_at: now };
+  if (!rec.first_seen_at) updates.first_seen_at = now;
+
+  await rec.update(updates, { transaction });
+
+  if (!rec.first_seen_at) {
+    await audit(req.user.id, "MAIL_THREAD_SEEN", { thread_id: Number(threadId), first_seen_at: now, last_seen_at: now }, { req, transaction });
+  } else {
+    await audit(req.user.id, "MAIL_THREAD_SEEN", { thread_id: Number(threadId), last_seen_at: now }, { req, transaction });
+  }
+  await audit(req.user.id, "MAIL_THREAD_READ", { thread_id: Number(threadId), last_read_at: now }, { req, transaction });
+  return rec;
+}
+
+async function createThreadWithRecipients(opts) {
+  const {
+    req,
+    subject,
+    body_html,
+    recipients,
+    attachments
+  } = opts;
+
+  return sequelize.transaction(async (transaction) => {
+    const now = new Date();
+    const thread = await MailThread.create(
+      {
+        subject,
+        created_by_user_id: req.user.id,
+        created_by_municipality_id: req.user.role === "MUNI_ADMIN" ? req.user.municipality_id : null,
+        last_message_at: now,
+        created_at: now
+      },
+      { transaction }
+    );
+
+    const msg = await MailMessage.create(
+      {
+        thread_id: thread.id,
+        author_user_id: req.user.id,
+        author_municipality_id: req.user.role === "MUNI_ADMIN" ? req.user.municipality_id : null,
+        body_html,
+        created_at: now
+      },
+      { transaction }
+    );
+
+    const seenKey = (r) => `${Number(r.user_id)}:${r.recipient_kind}:${r.recipient_municipality_id ? Number(r.recipient_municipality_id) : ""}`;
+    const uniqueRecipients = [];
+    const seen = new Set();
+    for (const r of recipients || []) {
+      const u = Number(r.user_id);
+      if (!u) continue;
+      const item = {
+        user_id: u,
+        recipient_kind: r.recipient_kind,
+        recipient_municipality_id: r.recipient_municipality_id ?? null
+      };
+      const k = seenKey(item);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      uniqueRecipients.push(item);
+    }
+
+    for (const r of uniqueRecipients) {
+      await MailRecipient.create(
+        {
+          thread_id: thread.id,
+          user_id: r.user_id,
+          recipient_kind: r.recipient_kind,
+          recipient_municipality_id: r.recipient_municipality_id,
+          created_at: now
+        },
+        { transaction }
+      );
+    }
+
+    // Ensure sender is a recipient, and mark sender as read/seen immediately (so it never shows unread for the creator)
+    const senderAlready = uniqueRecipients.some((r) => Number(r.user_id) === Number(req.user.id));
+    if (!senderAlready) {
+      await MailRecipient.create(
+        {
+          thread_id: thread.id,
+          user_id: req.user.id,
+          recipient_kind: "DIRECT_USER",
+          recipient_municipality_id: null,
+          last_read_at: now,
+          first_seen_at: now,
+          last_seen_at: now,
+          created_at: now
+        },
+        { transaction }
+      );
+    } else {
+      await MailRecipient.update(
+        { last_read_at: now, first_seen_at: now, last_seen_at: now },
+        { where: { thread_id: thread.id, user_id: req.user.id }, transaction }
+      );
+    }
+
+    if (Array.isArray(attachments) && attachments.length) {
+      for (const f of attachments) {
+        const rel = `mail/${f.filename}`.replace(/\\/g, "/");
+        const url = publicFileUrl(rel);
+        await MailAttachment.create(
+          {
+            message_id: msg.id,
+            filename: String(f.originalname || "file").slice(0, 1024),
+            mime_type: String(f.mimetype || "application/octet-stream").slice(0, 255),
+            size_bytes: Number(f.size || 0),
+            file_url: url,
+            created_at: now
+          },
+          { transaction }
+        );
+        await audit(
+          req.user.id,
+          "MAIL_ATTACHMENT_UPLOAD",
+          { thread_id: thread.id, message_id: msg.id, filename: String(f.originalname || ""), size_bytes: Number(f.size || 0) },
+          { req, transaction }
+        );
+      }
+    }
+
+    await audit(
+      req.user.id,
+      "MAIL_THREAD_CREATE",
+      { thread_id: thread.id, subject, recipients_count: uniqueRecipients.length },
+      { req, transaction }
+    );
+    await audit(req.user.id, "MAIL_MESSAGE_CREATE", { thread_id: thread.id, message_id: msg.id }, { req, transaction });
+
+    return { thread, msg };
+  });
+}
+
+adminRouter.get("/mail/threads", async (req, res, next) => {
+  try {
+    const page = Number(req.query.page || 1);
+    const pageSize = Math.min(Number(req.query.pageSize || 20), 50);
+    const offset = (page - 1) * pageSize;
+    const q = String(req.query.q || "").trim();
+    const unreadOnly = String(req.query.unread || "0") === "1";
+
+    const whereThread = q ? { subject: { [Op.iLike]: `%${q}%` } } : {};
+
+    const whereRecipient = { user_id: req.user.id };
+    if (unreadOnly) {
+      whereRecipient[Op.and] = [
+        sequelize.literal(
+          `("mail_recipients"."last_read_at" IS NULL OR "mail_recipients"."last_read_at" < "thread"."last_message_at")`
+        )
+      ];
+    }
+
+    const { rows, count } = await MailRecipient.findAndCountAll({
+      where: whereRecipient,
+      include: [
+        {
+          model: MailThread,
+          as: "thread",
+          where: whereThread,
+          required: true,
+          include: [
+            { model: Municipality, as: "createdByMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] },
+            { model: User, as: "createdByUser", attributes: ["id", "username", "name", "role", "municipality_id"] }
+          ]
+        },
+        { model: Municipality, as: "recipientMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] }
+      ],
+      order: [[{ model: MailThread, as: "thread" }, "last_message_at", "DESC"]],
+      offset,
+      limit: pageSize
+    });
+
+    const threads = rows.map((r) => {
+      const t = r.thread;
+      const unread = !r.last_read_at || new Date(r.last_read_at).getTime() < new Date(t.last_message_at).getTime();
+      return {
+        id: t.id,
+        subject: t.subject,
+        last_message_at: t.last_message_at,
+        created_at: t.created_at,
+        recipient_kind: r.recipient_kind,
+        recipient_municipality: r.recipientMunicipality
+          ? {
+              id: r.recipientMunicipality.id,
+              code: r.recipientMunicipality.code,
+              name_ar: r.recipientMunicipality.name_ar,
+              name_fr: r.recipientMunicipality.name_fr
+            }
+          : null,
+        created_by: t.createdByUser
+          ? { id: t.createdByUser.id, username: t.createdByUser.username, name: t.createdByUser.name, role: t.createdByUser.role }
+          : null,
+        created_by_municipality: t.createdByMunicipality
+          ? { id: t.createdByMunicipality.id, code: t.createdByMunicipality.code, name_ar: t.createdByMunicipality.name_ar, name_fr: t.createdByMunicipality.name_fr }
+          : null,
+        unread
+      };
+    });
+
+    res.json({ threads, total: count, page, pageSize });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/mail/unread-count", async (req, res, next) => {
+  try {
+    const out = await sequelize.query(
+      `
+      SELECT COUNT(*)::bigint AS c
+      FROM mail_recipients r
+      JOIN mail_threads t ON t.id = r.thread_id
+      WHERE r.user_id = :uid
+        AND (r.last_read_at IS NULL OR r.last_read_at < t.last_message_at)
+      `,
+      { replacements: { uid: req.user.id }, type: require("sequelize").QueryTypes.SELECT }
+    );
+    const c = out?.[0]?.c ?? 0;
+    res.json({ unread: Number(c) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/mail/threads/:threadId", async (req, res, next) => {
+  try {
+    const threadId = Number(req.params.threadId);
+    if (!threadId) return res.status(400).json({ error: "Invalid threadId" });
+
+    const rec = await MailRecipient.findOne({ where: { thread_id: threadId, user_id: req.user.id } });
+    if (!rec) return res.status(403).json({ error: "Forbidden" });
+
+    const thread = await MailThread.findByPk(threadId, {
+      include: [
+        { model: Municipality, as: "createdByMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] },
+        { model: User, as: "createdByUser", attributes: ["id", "username", "name", "role", "municipality_id"] },
+        { model: MailThread, as: "parentThread", attributes: ["id", "subject"] },
+        {
+          model: MailMessage,
+          as: "parentMessage",
+          attributes: ["id", "created_at", "body_html"],
+          include: [
+            { model: User, as: "authorUser", attributes: ["id", "username", "name", "role", "municipality_id"] },
+            { model: Municipality, as: "authorMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] }
+          ]
+        }
+      ]
+    });
+    if (!thread) return res.status(404).json({ error: "Thread not found" });
+
+    const messages = await MailMessage.findAll({
+      where: { thread_id: threadId },
+      include: [
+        { model: User, as: "authorUser", attributes: ["id", "username", "name", "role", "municipality_id"] },
+        { model: Municipality, as: "authorMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] },
+        {
+          model: MailMessage,
+          as: "replyToMessage",
+          attributes: ["id", "created_at", "body_html"],
+          include: [
+            { model: User, as: "authorUser", attributes: ["id", "username", "name", "role", "municipality_id"] },
+            { model: Municipality, as: "authorMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] }
+          ]
+        },
+        { model: MailAttachment, as: "attachments" }
+      ],
+      order: [["created_at", "ASC"], ["id", "ASC"]]
+    });
+
+    await sequelize.transaction(async (transaction) => {
+      await touchSeenAndRead(req, threadId, transaction);
+    });
+
+    res.json({
+      thread,
+      messages,
+      my_recipient: {
+        recipient_kind: rec.recipient_kind,
+        recipient_municipality_id: rec.recipient_municipality_id
+      }
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/mail/threads/:threadId/recipients", async (req, res, next) => {
+  try {
+    const threadId = Number(req.params.threadId);
+    if (!threadId) return res.status(400).json({ error: "Invalid threadId" });
+
+    const rec = await MailRecipient.findOne({ where: { thread_id: threadId, user_id: req.user.id } });
+    if (!rec) return res.status(403).json({ error: "Forbidden" });
+
+    const recipients = await MailRecipient.findAll({
+      where: { thread_id: threadId },
+      include: [
+        { model: User, as: "user", attributes: ["id", "username", "name", "role", "municipality_id"] },
+        { model: Municipality, as: "recipientMunicipality", attributes: ["id", "code", "name_ar", "name_fr"] }
+      ],
+      order: [["id", "ASC"]]
+    });
+
+    res.json({
+      recipients: recipients.map((r) => ({
+        id: r.id,
+        recipient_kind: r.recipient_kind,
+        last_read_at: r.last_read_at,
+        first_seen_at: r.first_seen_at,
+        last_seen_at: r.last_seen_at,
+        user: r.user
+          ? { id: r.user.id, username: r.user.username, name: r.user.name, role: r.user.role, municipality_id: r.user.municipality_id }
+          : null,
+        recipient_municipality: r.recipientMunicipality
+          ? {
+              id: r.recipientMunicipality.id,
+              code: r.recipientMunicipality.code,
+              name_ar: r.recipientMunicipality.name_ar,
+              name_fr: r.recipientMunicipality.name_fr
+            }
+          : null
+      }))
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.post("/mail/threads", uploadMailAttachments.array("attachments", 10), async (req, res, next) => {
+  try {
+    const subject = String(req.body?.subject || "").trim();
+    const body_html = String(req.body?.body_html || "").trim();
+    const targetRaw = req.body?.target;
+    if (!subject) return res.status(400).json({ error: "subject is required" });
+    if (!body_html) return res.status(400).json({ error: "body_html is required" });
+
+    let target;
+    try {
+      target = typeof targetRaw === "string" ? JSON.parse(targetRaw) : targetRaw;
+    } catch {
+      return res.status(400).json({ error: "target must be valid JSON" });
+    }
+    if (!target?.type) return res.status(400).json({ error: "target.type is required" });
+
+    const createdThreadIds = [];
+
+    // Always include all SUPER_ADMINs in threads that involve communes (so any wilaya admin can follow)
+    const superAdmins = await User.findAll({ where: { role: "SUPER_ADMIN" }, attributes: ["id"] });
+    const superAdminIds = superAdmins.map((u) => Number(u.id));
+
+    const attachments = req.files || [];
+
+    if (target.type === "ALL_COMMUNES") {
+      const muniUsers = await User.findAll({ where: { role: "MUNI_ADMIN" }, attributes: ["id", "municipality_id"] });
+      const recipients = [
+        ...superAdminIds.map((id) => ({ user_id: id, recipient_kind: "DIRECT_USER", recipient_municipality_id: null })),
+        ...muniUsers.map((u) => ({
+          user_id: Number(u.id),
+          recipient_kind: "ALL_MUNICIPALITIES",
+          recipient_municipality_id: u.municipality_id || null
+        }))
+      ];
+      const { thread } = await createThreadWithRecipients({
+        req,
+        subject,
+        body_html,
+        recipients,
+        attachments
+      });
+      createdThreadIds.push(thread.id);
+    } else if (target.type === "COMMUNES") {
+      const ids = Array.isArray(target.municipality_ids) ? target.municipality_ids.map((x) => Number(x)).filter(Boolean) : [];
+      if (!ids.length) return res.status(400).json({ error: "target.municipality_ids is required" });
+
+      const muniUsers = await User.findAll({ where: { municipality_id: { [Op.in]: ids } }, attributes: ["id", "municipality_id"] });
+      const recipients = [
+        ...superAdminIds.map((id) => ({ user_id: id, recipient_kind: "DIRECT_USER", recipient_municipality_id: null })),
+        ...muniUsers.map((u) => ({
+          user_id: Number(u.id),
+          recipient_kind: "MUNICIPALITY_TARGET",
+          recipient_municipality_id: u.municipality_id || null
+        }))
+      ];
+      const { thread } = await createThreadWithRecipients({
+        req,
+        subject,
+        body_html,
+        recipients,
+        attachments
+      });
+      createdThreadIds.push(thread.id);
+    } else if (target.type === "USERS") {
+      const ids = Array.isArray(target.user_ids) ? target.user_ids.map((x) => Number(x)).filter(Boolean) : [];
+      if (!ids.length) return res.status(400).json({ error: "target.user_ids is required" });
+
+      const users = await User.findAll({ where: { id: { [Op.in]: ids } }, attributes: ["id", "municipality_id", "role"] });
+      const recipients = [
+        ...superAdminIds.map((id) => ({ user_id: id, recipient_kind: "DIRECT_USER", recipient_municipality_id: null })),
+        ...users.map((u) => ({
+          user_id: Number(u.id),
+          recipient_kind: "DIRECT_USER",
+          recipient_municipality_id: u.municipality_id || null
+        }))
+      ];
+      const { thread } = await createThreadWithRecipients({
+        req,
+        subject,
+        body_html,
+        recipients,
+        attachments
+      });
+      createdThreadIds.push(thread.id);
+    } else {
+      return res.status(400).json({ error: "Unsupported target.type" });
+    }
+
+    res.json({ thread_ids: createdThreadIds });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.post("/mail/threads/:threadId/messages", uploadMailAttachments.array("attachments", 10), async (req, res, next) => {
+  try {
+    const threadId = Number(req.params.threadId);
+    if (!threadId) return res.status(400).json({ error: "Invalid threadId" });
+    const body_html = String(req.body?.body_html || "").trim();
+    if (!body_html) return res.status(400).json({ error: "body_html is required" });
+    const reply_to_message_id = req.body?.reply_to_message_id ? Number(req.body.reply_to_message_id) : null;
+
+    const rec = await MailRecipient.findOne({ where: { thread_id: threadId, user_id: req.user.id } });
+    if (!rec) return res.status(403).json({ error: "Forbidden" });
+
+    const attachments = req.files || [];
+
+    const result = await sequelize.transaction(async (transaction) => {
+      if (reply_to_message_id) {
+        const parent = await MailMessage.findOne({ where: { id: reply_to_message_id, thread_id: threadId }, transaction });
+        if (!parent) throw Object.assign(new Error("Invalid reply_to_message_id"), { status: 400 });
+      }
+
+      const msg = await MailMessage.create(
+        {
+          thread_id: threadId,
+          author_user_id: req.user.id,
+          author_municipality_id: null,
+          reply_to_message_id: reply_to_message_id || null,
+          body_html,
+          created_at: new Date()
+        },
+        { transaction }
+      );
+
+      if (attachments.length) {
+        for (const f of attachments) {
+          const rel = `mail/${f.filename}`.replace(/\\/g, "/");
+          const url = publicFileUrl(rel);
+          await MailAttachment.create(
+            {
+              message_id: msg.id,
+              filename: String(f.originalname || "file").slice(0, 1024),
+              mime_type: String(f.mimetype || "application/octet-stream").slice(0, 255),
+              size_bytes: Number(f.size || 0),
+              file_url: url,
+              created_at: new Date()
+            },
+            { transaction }
+          );
+          await audit(
+            req.user.id,
+            "MAIL_ATTACHMENT_UPLOAD",
+            { thread_id: threadId, message_id: msg.id, filename: String(f.originalname || ""), size_bytes: Number(f.size || 0) },
+            { req, transaction }
+          );
+        }
+      }
+
+      await MailThread.update({ last_message_at: new Date() }, { where: { id: threadId }, transaction });
+
+      await touchSeenAndRead(req, threadId, transaction);
+      await audit(req.user.id, "MAIL_MESSAGE_CREATE", { thread_id: threadId, message_id: msg.id }, { req, transaction });
+      return msg;
+    });
+
+    res.json({ message: result });
   } catch (e) {
     next(e);
   }

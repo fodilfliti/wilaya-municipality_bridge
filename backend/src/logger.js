@@ -6,7 +6,22 @@ let singleton;
 function getLogger() {
   if (singleton) return singleton;
   const env = getEnv();
-  singleton = pino({
+  const transport =
+    env.nodeEnv !== "production"
+      ? pino.transport({
+          target: "pino-pretty",
+          options: {
+            colorize: true,
+            translateTime: "SYS:standard",
+            singleLine: true,
+            messageKey: "msg",
+            errorLikeObjectKeys: ["err", "error"],
+            ignore: "pid,hostname"
+          }
+        })
+      : undefined;
+
+  const baseOptions = {
     level: env.logLevel,
     redact: {
       paths: [
@@ -18,7 +33,9 @@ function getLogger() {
       ],
       remove: true
     }
-  });
+  };
+
+  singleton = transport ? pino(baseOptions, transport) : pino(baseOptions);
   return singleton;
 }
 
