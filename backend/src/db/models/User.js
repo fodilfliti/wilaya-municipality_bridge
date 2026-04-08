@@ -10,7 +10,8 @@ module.exports = (sequelize) =>
       password_hash: { type: DataTypes.STRING(255), allowNull: false },
       role: { type: DataTypes.ENUM("SUPER_ADMIN", "MUNI_ADMIN"), allowNull: false },
       municipality_id: { type: DataTypes.BIGINT, allowNull: true },
-      is_blocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
+      is_blocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      can_create_wilaya_admins: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
     },
     {
       tableName: "users",

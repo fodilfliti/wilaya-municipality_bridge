@@ -6,6 +6,7 @@ export type LoginResponse = {
     name: string | null
     role: 'SUPER_ADMIN' | 'MUNI_ADMIN'
     municipality_id: number | null
+    can_create_wilaya_admins?: boolean
   }
 }
 
@@ -252,6 +253,18 @@ export async function adminUserSearch(token: string, q: string) {
   }>(`/admin/users/search?q=${qq}`, { method: 'GET', token })
 }
 
+export async function adminListWilayaAdmins(token: string) {
+  return http<{ admins: { id: number; name: string | null; role: 'SUPER_ADMIN' }[] }>(`/admin/wilaya-admins`, { method: 'GET', token })
+}
+
+export async function adminCreateWilayaAdmin(token: string, body: { username: string; name?: string }) {
+  return http<{ user: { id: number; name: string | null; role: 'SUPER_ADMIN' }; credentials: { code8: string; pdf_url: string } }>(`/admin/wilaya-admins`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
 export type MailThreadListItem = {
   id: number
   subject: string
@@ -357,6 +370,39 @@ export async function muniMailUnreadCount(token: string) {
 
 export async function muniMailThread(token: string, threadId: number) {
   return http<{ thread: any; messages: any[]; my_recipient: any }>(`/muni/mail/threads/${threadId}`, { method: 'GET', token })
+}
+
+export async function muniListWilayaAdmins(token: string) {
+  return http<{ admins: { id: number; name: string | null; role: 'SUPER_ADMIN' }[] }>(`/muni/wilaya-admins`, { method: 'GET', token })
+}
+
+export async function muniMailCreateThread(
+  token: string,
+  opts: {
+    subject: string
+    body_html: string
+    target: { type: 'ALL_WILAYA_ADMINS' } | { type: 'WILAYA_ADMINS'; user_ids: number[] }
+    attachments?: File[]
+  },
+) {
+  const fd = new FormData()
+  fd.append('subject', opts.subject)
+  fd.append('body_html', opts.body_html)
+  fd.append('target', JSON.stringify(opts.target))
+  for (const f of opts.attachments || []) fd.append('attachments', f)
+
+  const res = await fetch(`${API_URL}/muni/mail/threads`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  return data as { thread: any }
+}
+
+export async function muniMailWilayaSeen(token: string, threadId: number) {
+  return http<{ wilaya_admins: any[] }>(`/muni/mail/threads/${threadId}/wilaya-seen`, { method: 'GET', token })
 }
 
 export async function muniMailReply(

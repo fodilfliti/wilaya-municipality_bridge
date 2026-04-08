@@ -874,9 +874,17 @@ adminRouter.post("/municipalities/:municipalityId/users", async (req, res, next)
     const muni = await Municipality.findByPk(req.params.municipalityId);
     if (!muni) return res.status(404).json({ error: "Municipality not found" });
 
-    const requestedUsername = (req.body?.username || "").trim();
-    const username = requestedUsername || generateUsernameFromMunicipalityCode(muni.code);
+    const username = (req.body?.username || "").trim();
     const requestedName = (req.body?.name || "").trim() || null;
+
+    if (!username) return res.status(400).json({ error: "username is required" });
+
+    const USERNAME_RE = /^[A-Za-z0-9_]+$/;
+    if (!USERNAME_RE.test(username)) {
+      return res.status(400).json({
+        error: "Invalid username format. Use letters, numbers, and underscore (_) only (no spaces).",
+      });
+    }
 
     const code8 = generate8DigitCode();
     const password_hash = await bcrypt.hash(code8, 12);
@@ -920,6 +928,89 @@ adminRouter.post("/municipalities/:municipalityId/users", async (req, res, next)
 
     res.json({
       user: { id: user.id, username: user.username, name: user.name, role: user.role, municipality_id: user.municipality_id },
+      credentials: { code8, pdf_url: pdf.file_url }
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Wilaya admins (SUPER_ADMIN) management
+adminRouter.get("/wilaya-admins", async (req, res, next) => {
+  try {
+    const users = await User.findAll({
+      where: { role: "SUPER_ADMIN" },
+      attributes: ["id", "name", "role"],
+      order: [["id", "ASC"]]
+    });
+    res.json({
+      admins: users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        role: u.role
+      }))
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.post("/wilaya-admins", async (req, res, next) => {
+  try {
+    if (!req.user?.can_create_wilaya_admins) return res.status(403).json({ error: "Forbidden" });
+
+    const username = (req.body?.username || "").trim();
+    const requestedName = (req.body?.name || "").trim() || null;
+    if (!username) return res.status(400).json({ error: "username is required" });
+
+    const USERNAME_RE = /^[A-Za-z0-9_]+$/;
+    if (!USERNAME_RE.test(username)) {
+      return res.status(400).json({
+        error: "Invalid username format. Use letters, numbers, and underscore (_) only (no spaces)."
+      });
+    }
+
+    const existing = await User.findOne({ where: { username } });
+    if (existing) return res.status(409).json({ error: "Username already exists" });
+
+    const code8 = generate8DigitCode();
+    const password_hash = await bcrypt.hash(code8, 12);
+
+    const pdf = await generateCredentialsPdf({
+      username,
+      code8,
+      municipalityNameAr: null,
+      municipalityNameFr: null,
+      municipalityCode: null
+    });
+
+    const { user } = await withTxAudit(
+      req,
+      req.user.id,
+      "WILAYA_ADMIN_CREATE",
+      {
+        entity: { type: "User", id: null },
+        after: { username, name: requestedName, role: "SUPER_ADMIN", municipality_id: null, is_blocked: false },
+        pdf_url: pdf.file_url
+      },
+      async (transaction) => {
+        const user = await User.create(
+          {
+            username,
+            name: requestedName,
+            password_hash,
+            role: "SUPER_ADMIN",
+            municipality_id: null,
+            is_blocked: false
+          },
+          { transaction }
+        );
+        return { user };
+      }
+    );
+
+    res.json({
+      user: { id: user.id, name: user.name, role: user.role },
       credentials: { code8, pdf_url: pdf.file_url }
     });
   } catch (e) {

@@ -247,6 +247,8 @@ select {
   border-radius: 18px;
   box-shadow: var(--shadow);
   padding: 16px;
+  max-height: min(90svh, 900px);
+  overflow: auto;
 }
 
 .modalHeader {
@@ -355,6 +357,22 @@ select {
   margin-bottom: 10px;
 }
 
+.mailQuoteBtn {
+  width: 100%;
+  text-align: start;
+  border: none;
+  cursor: pointer;
+}
+
+.mailQuoteBtn:hover {
+  background: rgba(29, 78, 216, 0.09);
+}
+
+.mailMsgHighlight {
+  border-color: rgba(29, 78, 216, 0.55);
+  box-shadow: rgba(29, 78, 216, 0.15) 0 0 0 4px;
+}
+
 .mailBody {
   line-height: 170%;
 }
@@ -385,6 +403,17 @@ select {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.mailPickUserLine {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mailPickUserMeta {
+  font-size: 11px;
 }
 
 .rte {

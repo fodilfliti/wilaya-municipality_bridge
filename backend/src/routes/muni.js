@@ -16,6 +16,14 @@ const muniRouter = express.Router();
 
 muniRouter.use(requireAuth, attachUser, checkBlocked, requireRole(["MUNI_ADMIN", "SUPER_ADMIN"]));
 
+function safeUserForMuni(u) {
+  if (!u) return null;
+  const base = { id: u.id, name: u.name, role: u.role, municipality_id: u.municipality_id };
+  // Do not expose wilaya admin usernames to commune users
+  if (u.role === "SUPER_ADMIN") return { ...base, username: null };
+  return { ...base, username: u.username };
+}
+
 const uploadMailAttachments = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, path.join(storageRoot(), "mail")),
@@ -26,6 +34,20 @@ const uploadMailAttachments = multer({
     }
   }),
   limits: { fileSize: 50 * 1024 * 1024 }
+});
+
+// List wilaya admins for commune selection (no search needed)
+muniRouter.get("/wilaya-admins", async (req, res, next) => {
+  try {
+    const admins = await User.findAll({
+      where: { role: "SUPER_ADMIN" },
+      attributes: ["id", "name", "role"],
+      order: [["id", "ASC"]]
+    });
+    res.json({ admins: admins.map((u) => ({ id: u.id, name: u.name, role: u.role })) });
+  } catch (e) {
+    next(e);
+  }
 });
 
 muniRouter.get("/me", (req, res) => {
@@ -310,9 +332,7 @@ muniRouter.get("/mail/threads", async (req, res, next) => {
               name_fr: r.recipientMunicipality.name_fr
             }
           : null,
-        created_by: t.createdByUser
-          ? { id: t.createdByUser.id, username: t.createdByUser.username, name: t.createdByUser.name, role: t.createdByUser.role }
-          : null,
+        created_by: t.createdByUser ? safeUserForMuni(t.createdByUser) : null,
         created_by_municipality: t.createdByMunicipality
           ? { id: t.createdByMunicipality.id, code: t.createdByMunicipality.code, name_ar: t.createdByMunicipality.name_ar, name_fr: t.createdByMunicipality.name_fr }
           : null,
@@ -395,13 +415,170 @@ muniRouter.get("/mail/threads/:threadId", async (req, res, next) => {
     });
 
     res.json({
-      thread,
-      messages,
+      thread: (() => {
+        const t = thread.toJSON();
+        if (t.createdByUser) t.createdByUser = safeUserForMuni(t.createdByUser);
+        if (t.parentMessage?.authorUser) t.parentMessage.authorUser = safeUserForMuni(t.parentMessage.authorUser);
+        if (t.parentMessage?.replyToMessage?.authorUser) t.parentMessage.replyToMessage.authorUser = safeUserForMuni(t.parentMessage.replyToMessage.authorUser);
+        return t;
+      })(),
+      messages: messages.map((m) => {
+        const mm = m.toJSON();
+        if (mm.authorUser) mm.authorUser = safeUserForMuni(mm.authorUser);
+        if (mm.replyToMessage?.authorUser) mm.replyToMessage.authorUser = safeUserForMuni(mm.replyToMessage.authorUser);
+        return mm;
+      }),
       my_recipient: {
         recipient_kind: rec.recipient_kind,
         recipient_municipality_id: rec.recipient_municipality_id
       }
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// For commune users: see whether Wilaya admins have seen/read this thread
+muniRouter.get("/mail/threads/:threadId/wilaya-seen", async (req, res, next) => {
+  try {
+    const threadId = Number(req.params.threadId);
+    if (!threadId) return res.status(400).json({ error: "Invalid threadId" });
+
+    const rec = await MailRecipient.findOne({ where: { thread_id: threadId, user_id: req.user.id } });
+    if (!rec) return res.status(403).json({ error: "Forbidden" });
+
+    const rows = await MailRecipient.findAll({
+      where: { thread_id: threadId },
+      include: [{ model: User, as: "user", attributes: ["id", "username", "name", "role", "municipality_id"] }],
+      order: [["id", "ASC"]]
+    });
+
+    const wilaya = rows
+      .filter((r) => r.user?.role === "SUPER_ADMIN")
+      .map((r) => ({
+        user: safeUserForMuni(r.user),
+        first_seen_at: r.first_seen_at,
+        last_seen_at: r.last_seen_at,
+        last_read_at: r.last_read_at
+      }));
+
+    res.json({ wilaya_admins: wilaya });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Create a NEW thread from commune to wilaya admins (all or selected)
+muniRouter.post("/mail/threads", uploadMailAttachments.array("attachments", 10), async (req, res, next) => {
+  try {
+    const subject = String(req.body?.subject || "").trim().slice(0, 500);
+    const body_html = String(req.body?.body_html || "").trim();
+    if (!subject) return res.status(400).json({ error: "subject is required" });
+    if (!body_html) return res.status(400).json({ error: "body_html is required" });
+
+    let target = req.body?.target;
+    if (typeof target === "string") {
+      try {
+        target = JSON.parse(target);
+      } catch {
+        return res.status(400).json({ error: "Invalid target" });
+      }
+    }
+
+    const type = String(target?.type || "");
+    let adminIds = [];
+    if (type === "ALL_WILAYA_ADMINS") {
+      const admins = await User.findAll({ where: { role: "SUPER_ADMIN" }, attributes: ["id"] });
+      adminIds = admins.map((u) => Number(u.id));
+    } else if (type === "WILAYA_ADMINS") {
+      adminIds = Array.isArray(target?.user_ids) ? target.user_ids.map((x) => Number(x)).filter(Boolean) : [];
+      if (!adminIds.length) return res.status(400).json({ error: "user_ids is required" });
+      const count = await User.count({ where: { id: adminIds, role: "SUPER_ADMIN" } });
+      if (count !== adminIds.length) return res.status(400).json({ error: "Invalid user_ids" });
+    } else {
+      return res.status(400).json({ error: "Invalid target" });
+    }
+
+    const recipients = [
+      ...adminIds.map((id) => ({ user_id: id, recipient_kind: "DIRECT_USER", recipient_municipality_id: null })),
+      { user_id: Number(req.user.id), recipient_kind: "DIRECT_USER", recipient_municipality_id: req.user.municipality_id || null }
+    ];
+    const attachments = req.files || [];
+
+    const out = await sequelize.transaction(async (transaction) => {
+      const now = new Date();
+      const thread = await MailThread.create(
+        {
+          subject,
+          created_by_user_id: req.user.id,
+          created_by_municipality_id: req.user.municipality_id || null,
+          last_message_at: now,
+          created_at: now
+        },
+        { transaction }
+      );
+
+      const msg = await MailMessage.create(
+        {
+          thread_id: thread.id,
+          author_user_id: req.user.id,
+          author_municipality_id: req.user.municipality_id || null,
+          body_html,
+          created_at: now
+        },
+        { transaction }
+      );
+
+      const seen = new Set();
+      for (const r of recipients) {
+        const key = `${Number(r.user_id)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        await MailRecipient.create(
+          {
+            thread_id: thread.id,
+            user_id: Number(r.user_id),
+            recipient_kind: r.recipient_kind,
+            recipient_municipality_id: r.recipient_municipality_id ?? null,
+            last_read_at: Number(r.user_id) === Number(req.user.id) ? now : null,
+            first_seen_at: Number(r.user_id) === Number(req.user.id) ? now : null,
+            last_seen_at: Number(r.user_id) === Number(req.user.id) ? now : null,
+            created_at: now
+          },
+          { transaction }
+        );
+      }
+
+      if (attachments.length) {
+        for (const f of attachments) {
+          const rel = `mail/${f.filename}`.replace(/\\/g, "/");
+          const url = publicFileUrl(rel);
+          await MailAttachment.create(
+            {
+              message_id: msg.id,
+              filename: String(f.originalname || "file").slice(0, 1024),
+              mime_type: String(f.mimetype || "application/octet-stream").slice(0, 255),
+              size_bytes: Number(f.size || 0),
+              file_url: url,
+              created_at: now
+            },
+            { transaction }
+          );
+          await audit(
+            req.user.id,
+            "MAIL_ATTACHMENT_UPLOAD",
+            { thread_id: thread.id, message_id: msg.id, filename: String(f.originalname || ""), size_bytes: Number(f.size || 0) },
+            { req, transaction }
+          );
+        }
+      }
+
+      await audit(req.user.id, "MAIL_THREAD_CREATE", { thread_id: thread.id, subject, target: type, admins_count: adminIds.length }, { req, transaction });
+      await audit(req.user.id, "MAIL_MESSAGE_CREATE", { thread_id: thread.id, message_id: msg.id }, { req, transaction });
+      return thread;
+    });
+
+    res.json({ thread: out });
   } catch (e) {
     next(e);
   }

@@ -16,6 +16,7 @@ export function MuniAppsPage({
   onRefresh: () => void
 }) {
   const { t } = useTranslation()
+  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:4000'
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<'NEEDS' | 'ALL'>('NEEDS')
   const [versionsOpen, setVersionsOpen] = useState(false)
@@ -97,21 +98,43 @@ export function MuniAppsPage({
           {visibleApps.map((a: any) => (
             <div key={a.id} className="card cardSubtle">
               <div className="row" style={{ justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 800 }}>{a.app_name}</div>
-                  <div className="muted">{a.description || ''}</div>
-                  <div className="row" style={{ marginTop: 6, flexWrap: 'wrap' }}>
-                    {a.status ? <div className="chip">{statusLabel(String(a.status))}</div> : null}
-                    {a.last ? (
-                      <div className="chip">
-                        {t('lastDownload', {
-                          version: a.last.version_number,
-                          timestamp: a.last.timestamp ? new Date(a.last.timestamp).toLocaleString() : '',
-                        })}
-                      </div>
-                    ) : (
-                      <div className="chip">{t('notDownloadedYet')}</div>
-                    )}
+                <div className="row" style={{ gap: 12 }}>
+                  {a.logo_url ? (
+                    <img
+                      src={String(a.logo_url).startsWith('http') ? a.logo_url : `${apiBase}${a.logo_url}`}
+                      alt=""
+                      width={40}
+                      height={40}
+                      style={{ borderRadius: 10, border: '1px solid var(--border)', background: 'var(--logoBg)' }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                        background: 'var(--logoBg)',
+                        flex: '0 0 auto',
+                      }}
+                    />
+                  )}
+                  <div>
+                    <div style={{ fontWeight: 800 }}>{a.app_name}</div>
+                    <div className="muted">{a.description || ''}</div>
+                    <div className="row" style={{ marginTop: 6, flexWrap: 'wrap' }}>
+                      {a.status ? <div className="chip">{statusLabel(String(a.status))}</div> : null}
+                      {a.last ? (
+                        <div className="chip">
+                          {t('lastDownload', {
+                            version: a.last.version_number,
+                            timestamp: a.last.timestamp ? new Date(a.last.timestamp).toLocaleString() : '',
+                          })}
+                        </div>
+                      ) : (
+                        <div className="chip">{t('notDownloadedYet')}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="row">

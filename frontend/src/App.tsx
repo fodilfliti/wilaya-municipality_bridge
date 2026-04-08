@@ -269,7 +269,7 @@ function App() {
               />
               <Route
                 path="/users"
-                element={<AdminUsersPage token={token!} />}
+                element={<AdminUsersPage token={token!} me={me} />}
               />
               <Route path="/mail" element={<MailInboxPage token={token!} mode="admin" />} />
               <Route path="/mail/:threadId" element={<MailThreadPage token={token!} mode="admin" />} />

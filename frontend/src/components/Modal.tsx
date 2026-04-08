@@ -14,6 +14,18 @@ export function Modal({
 }) {
   const { t } = useTranslation()
 
+  const displayError = (() => {
+    if (!error) return null
+    const e = String(error).trim()
+    const lower = e.toLowerCase()
+    if (lower.includes('username already exists')) return t('errorUsernameExists')
+    if (lower.includes('invalid username format')) return t('errorUsernameFormat')
+    if (lower === 'username is required') return t('usernameRequired')
+    if (lower === 'already exists') return t('errorAlreadyExists')
+    if (lower.includes('already exists')) return t('errorAlreadyExists')
+    return e
+  })()
+
   return (
     <div className="modalBackdrop" onMouseDown={onClose}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
@@ -23,9 +35,9 @@ export function Modal({
             {t('close')}
           </button>
         </div>
-        {error ? (
+        {displayError ? (
           <div className="statusPill stNever" style={{ marginBottom: 10 }}>
-            {error}
+            {displayError}
           </div>
         ) : null}
         {children}

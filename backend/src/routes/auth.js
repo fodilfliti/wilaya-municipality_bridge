@@ -28,7 +28,14 @@ authRouter.post("/login", async (req, res, next) => {
 
     res.json({
       token,
-      user: { id: user.id, username: user.username, name: user.name, role: user.role, municipality_id: user.municipality_id }
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        municipality_id: user.municipality_id,
+        can_create_wilaya_admins: Boolean(user.can_create_wilaya_admins)
+      }
     });
   } catch (e) {
     next(e);

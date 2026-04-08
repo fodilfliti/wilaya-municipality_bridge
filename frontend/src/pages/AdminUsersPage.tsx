@@ -7,7 +7,13 @@ import { Modal } from "../components/Modal";
 import { ErrorPopup } from "../components/ErrorPopup";
 import { Snackbar } from "../components/Snackbar";
 
-export function AdminUsersPage({ token }: { token: string }) {
+export function AdminUsersPage({
+  token,
+  me,
+}: {
+  token: string;
+  me?: api.LoginResponse["user"] | null;
+}) {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialMuniId = Number(searchParams.get("municipalityId") || "") || "";
@@ -30,6 +36,7 @@ export function AdminUsersPage({ token }: { token: string }) {
   );
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createWilayaOpen, setCreateWilayaOpen] = useState(false);
   const [resetUser, setResetUser] = useState<any | null>(null);
   const [blockUser, setBlockUser] = useState<any | null>(null);
   const [unblockUser, setUnblockUser] = useState<any | null>(null);
@@ -122,6 +129,11 @@ export function AdminUsersPage({ token }: { token: string }) {
           >
             {t("createUserCta")}
           </button>
+          {me?.can_create_wilaya_admins ? (
+            <button className="btn btnSoft" onClick={() => setCreateWilayaOpen(true)}>
+              {t("createWilayaAdmin")}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -185,7 +197,7 @@ export function AdminUsersPage({ token }: { token: string }) {
               <div>
                 <div style={{ fontWeight: 900 }}>{u.name || u.username}</div>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  @{u.username}
+                  {u.username}
                 </div>
                 <div className="muted">{u.is_blocked ? t("blocked") : t("active")}</div>
               </div>
@@ -258,16 +270,16 @@ export function AdminUsersPage({ token }: { token: string }) {
           <div className="grid">
             <div className="muted">{t("createUserAutoHint")}</div>
             <label className="field">
-              <div className="muted">{t("name")}</div>
-              <input className="input" value={optName} onChange={(e) => setOptName(e.target.value)} />
-            </label>
-            <label className="field">
-              <div className="muted">{t("optionalUsername")}</div>
+              <div className="muted">{t("username")}</div>
               <input
                 className="input"
                 value={optUsername}
                 onChange={(e) => setOptUsername(e.target.value)}
               />
+            </label>
+            <label className="field">
+              <div className="muted">{t("fullNameOptional")}</div>
+              <input className="input" value={optName} onChange={(e) => setOptName(e.target.value)} />
             </label>
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button
@@ -277,10 +289,17 @@ export function AdminUsersPage({ token }: { token: string }) {
                     if (!municipalityId)
                       throw new Error(t("municipalityIdRequired"));
                     setModalError(null);
+                    const u = optUsername.trim();
+                    if (!u) {
+                      throw new Error(t("usernameRequired"));
+                    }
+                    if (u && !/^[A-Za-z0-9_]+$/.test(u)) {
+                      throw new Error(t("errorUsernameFormat"));
+                    }
                     const res = await api.adminCreateMuniUser(
                       token,
                       municipalityId as number,
-                      { name: optName.trim() || undefined, username: optUsername || undefined },
+                      { name: optName.trim() || undefined, username: u },
                     );
                     setCreatedCreds(res.credentials);
                     setCreateOpen(false);
@@ -288,6 +307,54 @@ export function AdminUsersPage({ token }: { token: string }) {
                     setOptName("");
                     setModalError(null);
                     await load();
+                  } catch (e: any) {
+                    setModalError(e.message);
+                  }
+                }}
+              >
+                {t("create")}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {createWilayaOpen ? (
+        <Modal
+          title={t("createWilayaAdmin")}
+          onClose={() => {
+            setCreateWilayaOpen(false);
+            setModalError(null);
+            setOptUsername("");
+            setOptName("");
+          }}
+          error={modalError}
+        >
+          <div className="grid">
+            <div className="muted">{t("createUserAutoHint")}</div>
+            <label className="field">
+              <div className="muted">{t("username")}</div>
+              <input className="input" value={optUsername} onChange={(e) => setOptUsername(e.target.value)} />
+            </label>
+            <label className="field">
+              <div className="muted">{t("fullNameOptional")}</div>
+              <input className="input" value={optName} onChange={(e) => setOptName(e.target.value)} />
+            </label>
+            <div className="row" style={{ justifyContent: "flex-end" }}>
+              <button
+                className="btn btnPrimary"
+                onClick={async () => {
+                  try {
+                    setModalError(null);
+                    const u = optUsername.trim();
+                    if (!u) throw new Error(t("usernameRequired"));
+                    if (!/^[A-Za-z0-9_]+$/.test(u)) throw new Error(t("errorUsernameFormat"));
+                    const res = await api.adminCreateWilayaAdmin(token, { username: u, name: optName.trim() || undefined });
+                    setCreatedCreds(res.credentials);
+                    setCreateWilayaOpen(false);
+                    setOptUsername("");
+                    setOptName("");
+                    setModalError(null);
                   } catch (e: any) {
                     setModalError(e.message);
                   }

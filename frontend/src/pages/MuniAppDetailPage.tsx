@@ -7,6 +7,7 @@ export function MuniAppDetailPage({ token }: { token: string }) {
   const { t } = useTranslation();
   const { appId } = useParams();
   const numericAppId = useMemo(() => Number(appId), [appId]);
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,11 +49,31 @@ export function MuniAppDetailPage({ token }: { token: string }) {
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <div className="title">
-            {app?.app_name ? app.app_name : t("apps")}
+        <div className="row" style={{ gap: 12, alignItems: "center" }}>
+          {app?.logo_url ? (
+            <img
+              src={String(app.logo_url).startsWith("http") ? app.logo_url : `${apiBase}${app.logo_url}`}
+              alt=""
+              width={44}
+              height={44}
+              style={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--logoBg)" }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+                background: "var(--logoBg)",
+                flex: "0 0 auto",
+              }}
+            />
+          )}
+          <div>
+            <div className="title">{app?.app_name ? app.app_name : t("apps")}</div>
+            <div className="muted">{app?.description || ""}</div>
           </div>
-          <div className="muted">{app?.description || ""}</div>
         </div>
         <div className="row">
           <Link className="btn" to="/">

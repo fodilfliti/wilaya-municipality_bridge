@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import * as api from '../api'
 import { MailComposeModal } from '../components/MailComposeModal'
+import { MuniMailComposeModal } from '../components/MuniMailComposeModal'
 
 function fmt(dt: string) {
   try {
@@ -47,11 +48,9 @@ export function MailInboxPage({ token, mode }: { token: string; mode: 'admin' | 
           <div className="title">{t('mailInbox')}</div>
           <div className="muted">{t('mailUnreadCount', { count: unreadCount })}</div>
         </div>
-        {mode === 'admin' ? (
-          <button className="btn btnPrimary" onClick={() => setComposeOpen(true)}>
-            {t('mailCompose')}
-          </button>
-        ) : null}
+        <button className="btn btnPrimary" onClick={() => setComposeOpen(true)}>
+          {t('mailCompose')}
+        </button>
       </div>
 
       {error ? (
@@ -114,15 +113,25 @@ export function MailInboxPage({ token, mode }: { token: string; mode: 'admin' | 
       </div>
 
       {composeOpen ? (
-        <MailComposeModal
-          token={token}
-          onClose={() => setComposeOpen(false)}
-          onCreated={(ids) => {
-            setComposeOpen(false)
-            loadThreads(1).catch(() => {})
-            // thread navigation is handled by the user clicking from inbox list
-          }}
-        />
+        mode === 'admin' ? (
+          <MailComposeModal
+            token={token}
+            onClose={() => setComposeOpen(false)}
+            onCreated={() => {
+              setComposeOpen(false)
+              loadThreads(1).catch(() => {})
+            }}
+          />
+        ) : (
+          <MuniMailComposeModal
+            token={token}
+            onClose={() => setComposeOpen(false)}
+            onCreated={() => {
+              setComposeOpen(false)
+              loadThreads(1).catch(() => {})
+            }}
+          />
+        )
       ) : null}
     </div>
   )

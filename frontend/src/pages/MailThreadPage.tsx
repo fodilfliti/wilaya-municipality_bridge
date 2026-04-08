@@ -32,9 +32,33 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
   const [seenOpen, setSeenOpen] = useState(false)
   const [seenError, setSeenError] = useState<string | null>(null)
   const [seenRows, setSeenRows] = useState<any[] | null>(null)
+  const [seenMuniId, setSeenMuniId] = useState<number | null>(null)
+  const [seenQ, setSeenQ] = useState('')
+  const [seenShowWilaya, setSeenShowWilaya] = useState(true)
+  const [seenShowCommunes, setSeenShowCommunes] = useState(true)
+  const [allMunicipalities, setAllMunicipalities] = useState<any[] | null>(null)
+
+  const [wilayaOpen, setWilayaOpen] = useState(false)
+  const [wilayaError, setWilayaError] = useState<string | null>(null)
+  const [wilayaRows, setWilayaRows] = useState<any[] | null>(null)
 
   const isFr = i18n.language === 'fr'
+
+  function displayUser(u: any | null | undefined) {
+    if (!u) return '—'
+    const name = String(u.name || '').trim()
+    if (mode === 'muni' && u.role === 'SUPER_ADMIN') return name || t('wilayaAdminNumbered', { id: u.id })
+    return name || u.username || '—'
+  }
   const id = useMemo(() => (threadId ? Number(threadId) : null), [threadId])
+
+  const jumpToMessage = (messageId: number) => {
+    const el = document.getElementById(`mail-msg-${messageId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('mailMsgHighlight')
+    window.setTimeout(() => el.classList.remove('mailMsgHighlight'), 1200)
+  }
 
   async function load() {
     if (!id) return
@@ -47,11 +71,54 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
     if (!id) return
     setSeenError(null)
     setSeenRows(null)
+    setSeenMuniId(null)
+    setSeenQ('')
+    setAllMunicipalities(null)
     try {
       const res = await api.adminMailRecipients(token, id)
       setSeenRows(res.recipients || [])
     } catch (e: any) {
       setSeenError(e?.message || 'Erreur')
+    }
+  }
+
+  useEffect(() => {
+    if (mode !== 'admin') return
+    if (!seenOpen) return
+    if (!seenRows) return
+    if (allMunicipalities) return
+    const isAll = seenRows.some((r) => r.recipient_kind === 'ALL_MUNICIPALITIES')
+    if (!isAll) return
+
+    ;(async () => {
+      try {
+        const out: any[] = []
+        let page = 1
+        const pageSize = 100
+        while (true) {
+          const res = await api.adminListMunicipalities(token, { page, pageSize })
+          out.push(...(res.municipalities || []))
+          if (out.length >= (res.total || 0)) break
+          page += 1
+          if (page > 50) break
+        }
+        setAllMunicipalities(out)
+      } catch {
+        // If it fails, we still render based on recipients only.
+        setAllMunicipalities([])
+      }
+    })()
+  }, [allMunicipalities, mode, seenOpen, seenRows, token])
+
+  async function loadWilaya() {
+    if (!id) return
+    setWilayaError(null)
+    setWilayaRows(null)
+    try {
+      const res = await api.muniMailWilayaSeen(token, id)
+      setWilayaRows(res.wilaya_admins || [])
+    } catch (e: any) {
+      setWilayaError(e?.message || 'Erreur')
     }
   }
 
@@ -91,6 +158,17 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
               {t('mailSeenBy')}
             </button>
           ) : null}
+          {mode === 'muni' ? (
+            <button
+              className="btn"
+              onClick={() => {
+                setWilayaOpen(true)
+                loadWilaya().catch(() => {})
+              }}
+            >
+              {t('mailWilayaSeen')}
+            </button>
+          ) : null}
           <button className="btn" onClick={() => nav('/mail')}>
             {t('back')}
           </button>
@@ -109,11 +187,11 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
         <>
           <div className="mailThread">
             {detail.messages.map((m) => {
-              const author = m.authorUser?.name || m.authorUser?.username || '—'
+              const author = displayUser(m.authorUser)
               const muniName = m.authorMunicipality ? (isFr ? m.authorMunicipality.name_fr : m.authorMunicipality.name_ar) : null
               const roleLabel =
                 m.authorUser?.role === 'SUPER_ADMIN' ? t('roleAdmin') : m.authorUser?.role === 'MUNI_ADMIN' ? t('roleMuni') : ''
-              const replyToAuthor = m.replyToMessage?.authorUser?.name || m.replyToMessage?.authorUser?.username || null
+              const replyToAuthor = m.replyToMessage ? displayUser(m.replyToMessage.authorUser) : null
               const replyToMuni = m.replyToMessage?.authorMunicipality
                 ? isFr
                   ? m.replyToMessage.authorMunicipality.name_fr
@@ -127,7 +205,7 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
                 return raw ? raw.slice(0, 120) : ''
               })()
               return (
-                <div key={m.id} className="mailMsg">
+                <div key={m.id} id={`mail-msg-${m.id}`} className="mailMsg">
                   <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
                     <div style={{ fontWeight: 800 }}>
                       {muniName ? `${muniName} — ` : ''}
@@ -138,12 +216,17 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
                     </div>
                   </div>
                   {m.replyToMessage ? (
-                    <div className="mailQuote">
+                    <button
+                      type="button"
+                      className="mailQuote mailQuoteBtn"
+                      title={t('mailJumpToOriginal')}
+                      onClick={() => jumpToMessage(Number(m.replyToMessage.id))}
+                    >
                       <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginBottom: 4 }}>
                         {t('mailReplyingTo', { who: `${replyToMuni ? replyToMuni + ' — ' : ''}${replyToAuthor || '—'}` })}
                       </div>
                       {replySnippet ? <div className="muted" style={{ fontSize: 12 }}>{replySnippet}</div> : null}
-                    </div>
+                    </button>
                   ) : null}
                   <div className="mailBody" dangerouslySetInnerHTML={{ __html: m.body_html }} />
                   {m.attachments?.length ? (
@@ -278,19 +361,206 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
           {!seenRows ? (
             <div className="muted">{t('loading')}</div>
           ) : (
-            <div className="grid" style={{ gap: 8 }}>
-              {seenRows.map((r) => {
+            (() => {
+              const q = seenQ.trim().toLowerCase()
+              const rows = !q
+                ? seenRows
+                : seenRows.filter((r) => {
+                    const u = r.user || {}
+                    const muni = r.recipient_municipality || {}
+                    const hay = [
+                      String(u.username || ''),
+                      String(u.name || ''),
+                      String(muni.name_ar || ''),
+                      String(muni.name_fr || ''),
+                      String(muni.code || ''),
+                    ]
+                      .join(' ')
+                      .toLowerCase()
+                    return hay.includes(q)
+                  })
+
+              const wilaya = rows.filter((r) => r.user?.role === 'SUPER_ADMIN')
+              const agents = rows.filter((r) => r.user?.role === 'MUNI_ADMIN')
+
+              const muniMap = new Map<number, { muni: any; rows: any[] }>()
+              for (const r of agents) {
+                const mid = Number(r.recipient_municipality?.id || r.user?.municipality_id || 0)
+                if (!mid) continue
+                const cur = muniMap.get(mid) || { muni: r.recipient_municipality || null, rows: [] }
+                cur.rows.push(r)
+                if (!cur.muni && r.recipient_municipality) cur.muni = r.recipient_municipality
+                muniMap.set(mid, cur)
+              }
+              const muniList = Array.from(muniMap.entries()).map(([mid, v]) => ({ mid, ...v }))
+
+              const renderRow = (r: any) => {
                 const u = r.user
                 const muni = r.recipient_municipality
                 const roleLabel = u?.role === 'SUPER_ADMIN' ? t('roleAdmin') : u?.role === 'MUNI_ADMIN' ? t('roleMuni') : ''
                 const muniLabel = muni ? (isFr ? muni.name_fr : muni.name_ar) : null
                 const seen = !!r.first_seen_at
+                const display = displayUser(u)
                 return (
                   <div key={r.id} className="card cardSubtle" style={{ padding: 12 }}>
                     <div className="row" style={{ justifyContent: 'space-between' }}>
                       <div style={{ fontWeight: 900 }}>
                         {muniLabel ? `${muniLabel} — ` : ''}
-                        {u?.username || '—'} {roleLabel ? <span className="muted">({roleLabel})</span> : null}
+                        {display}{' '}
+                        {roleLabel ? <span className="muted">({roleLabel})</span> : null}
+                      </div>
+                      <div className={`statusPill ${seen ? 'stUp' : 'stNever'}`}>{seen ? t('mailSeen') : t('mailNotSeen')}</div>
+                    </div>
+                    <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+                      {t('mailSeenAt', {
+                        first: r.first_seen_at ? fmt(r.first_seen_at) : '—',
+                        last: r.last_seen_at ? fmt(r.last_seen_at) : '—',
+                      })}
+                    </div>
+                    <div className="muted" style={{ marginTop: 2, fontSize: 12 }}>
+                      {t('mailReadAt', { when: r.last_read_at ? fmt(r.last_read_at) : '—' })}
+                    </div>
+                  </div>
+                )
+              }
+
+              const muniSummary = muniList
+                .map((m) => {
+                  const total = m.rows.length
+                  const seenCount = m.rows.filter((r) => !!r.first_seen_at).length
+                  const lastSeen = m.rows.reduce((acc: any, r: any) => {
+                    const v = r.last_seen_at ? new Date(r.last_seen_at).getTime() : null
+                    if (!v) return acc
+                    return acc && acc > v ? acc : v
+                  }, null as any)
+                  const muniLabel = m.muni ? (isFr ? m.muni.name_fr : m.muni.name_ar) : String(m.mid)
+                  return { ...m, total, seenCount, lastSeen, muniLabel }
+                })
+                .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
+
+              // If this thread is "ALL communes", show communes even if they currently have 0 users/recipients.
+              const isAll = seenRows.some((r) => r.recipient_kind === 'ALL_MUNICIPALITIES')
+              const muniSummary2 =
+                isAll && allMunicipalities
+                  ? (() => {
+                      const byId = new Map<number, any>()
+                      for (const m of muniSummary) byId.set(Number(m.mid), m)
+                      for (const m of allMunicipalities) {
+                        const mid = Number(m.id)
+                        if (!mid || byId.has(mid)) continue
+                        byId.set(mid, {
+                          mid,
+                          muni: { id: m.id, code: m.code, name_ar: m.name_ar, name_fr: m.name_fr },
+                          rows: [],
+                          total: 0,
+                          seenCount: 0,
+                          lastSeen: null,
+                          muniLabel: isFr ? m.name_fr : m.name_ar,
+                        })
+                      }
+                      return Array.from(byId.values()).sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
+                    })()
+                  : muniSummary
+
+              return (
+                <div className="grid" style={{ gap: 10 }}>
+                  <div className="field" style={{ marginBottom: 4 }}>
+                    <div className="muted">{t('mailSearchSeen')}</div>
+                    <input className="input" value={seenQ} onChange={(e) => setSeenQ(e.target.value)} placeholder={t('mailSearchPh')} />
+                  </div>
+
+                  <div className="title" style={{ margin: 0 }}>
+                    <button className="btn btnSoft btnSmall" type="button" onClick={() => setSeenShowWilaya((v) => !v)}>
+                      {seenShowWilaya ? t('hide') : t('show')}
+                    </button>{' '}
+                    {t('mailSeenWilayaAdmins')} <span className="muted">({wilaya.length})</span>
+                  </div>
+                  {seenShowWilaya ? (
+                    <div className="grid" style={{ gap: 8 }}>
+                      {wilaya.map(renderRow)}
+                      {!wilaya.length ? <div className="muted">{t('noResults')}</div> : null}
+                    </div>
+                  ) : null}
+
+                  <div className="title" style={{ margin: '8px 0 0' }}>
+                    <button className="btn btnSoft btnSmall" type="button" onClick={() => setSeenShowCommunes((v) => !v)}>
+                      {seenShowCommunes ? t('hide') : t('show')}
+                    </button>{' '}
+                    {t('mailSeenCommunes')} <span className="muted">({muniSummary2.length})</span>
+                  </div>
+
+                  {seenShowCommunes && !seenMuniId ? (
+                    <div className="grid" style={{ gap: 8 }}>
+                      {(() => {
+                        const notSeen = muniSummary2.filter((m) => m.seenCount === 0)
+                        if (!notSeen.length) return null
+                        return (
+                          <div className="card cardSubtle" style={{ padding: 12 }}>
+                            <div className="title" style={{ margin: 0 }}>
+                              {t('mailNotSeenCommunes')}
+                            </div>
+                            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                              {notSeen.map((m) => m.muniLabel).join('، ')}
+                            </div>
+                          </div>
+                        )
+                      })()}
+                      {muniSummary2.map((m) => (
+                        <button
+                          key={m.mid}
+                          type="button"
+                          className="btn btnSoft"
+                          style={{ textAlign: 'start' }}
+                          onClick={() => setSeenMuniId(m.mid)}
+                        >
+                          <div className="row" style={{ justifyContent: 'space-between' }}>
+                            <div style={{ fontWeight: 900 }}>{m.muniLabel}</div>
+                            <div className={`statusPill ${m.seenCount ? 'stUp' : 'stNever'}`}>
+                              {t('mailSeenCount', { seen: m.seenCount, total: m.total })}
+                            </div>
+                          </div>
+                          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                            {t('mailLastSeen', { when: m.lastSeen ? new Date(m.lastSeen).toLocaleString() : '—' })}
+                          </div>
+                        </button>
+                      ))}
+                      {!muniSummary2.length ? <div className="muted">{t('noResults')}</div> : null}
+                    </div>
+                  ) : seenShowCommunes && seenMuniId ? (
+                    <div className="grid" style={{ gap: 8 }}>
+                      <div className="row" style={{ justifyContent: 'space-between' }}>
+                        <div className="title" style={{ margin: 0 }}>
+                          {muniSummary2.find((x) => x.mid === seenMuniId)?.muniLabel || '—'}
+                        </div>
+                        <button className="btn" onClick={() => setSeenMuniId(null)}>
+                          {t('back')}
+                        </button>
+                      </div>
+                      {(muniMap.get(seenMuniId)?.rows || []).map(renderRow)}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })()
+          )}
+        </Modal>
+      ) : null}
+
+      {wilayaOpen ? (
+        <Modal title={t('mailWilayaSeen')} error={wilayaError} onClose={() => setWilayaOpen(false)}>
+          {!wilayaRows ? (
+            <div className="muted">{t('loading')}</div>
+          ) : (
+            <div className="grid" style={{ gap: 8 }}>
+              {wilayaRows.map((r, idx) => {
+                const u = r.user
+                const display = displayUser(u)
+                const seen = !!r.first_seen_at
+                return (
+                  <div key={idx} className="card cardSubtle" style={{ padding: 12 }}>
+                    <div className="row" style={{ justifyContent: 'space-between' }}>
+                      <div style={{ fontWeight: 900 }}>
+                        {display} <span className="muted">({t('roleAdmin')})</span>
                       </div>
                       <div className={`statusPill ${seen ? 'stUp' : 'stNever'}`}>{seen ? t('mailSeen') : t('mailNotSeen')}</div>
                     </div>
@@ -303,6 +573,7 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
                   </div>
                 )
               })}
+              {!wilayaRows.length ? <div className="muted">{t('noResults')}</div> : null}
             </div>
           )}
         </Modal>

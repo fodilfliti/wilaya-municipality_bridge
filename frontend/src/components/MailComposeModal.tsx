@@ -144,7 +144,8 @@ export function MailComposeModal({
                 {userResults.map((u) => {
                   const checked = selectedUsers.includes(u.id)
                   const muniLabel = u.municipality ? (isFr ? u.municipality.name_fr : u.municipality.name_ar) : ''
-                  const displayName = (u.name || '').trim() || u.username
+                  const name = (u.name || '').trim()
+                  const roleLabel = u.role === 'SUPER_ADMIN' ? t('roleAdmin') : u.role === 'MUNI_ADMIN' ? t('roleMuni') : u.role
                   return (
                     <label key={u.id} className="mailPickItem">
                       <input
@@ -152,10 +153,11 @@ export function MailComposeModal({
                         checked={checked}
                         onChange={() => setSelectedUsers((prev) => (checked ? prev.filter((x) => x !== u.id) : [...prev, u.id]))}
                       />
-                      <span>
-                        <span style={{ fontWeight: 800 }}>{displayName}</span>{' '}
-                        <span className="muted">(@{u.username} · {u.role})</span>{' '}
-                        {muniLabel ? <span className="muted">— {muniLabel}</span> : null}
+                      <span className="mailPickUserLine">
+                        <span style={{ fontWeight: 900 }}>{name || u.username}</span>
+                        {name ? <span className="muted mailPickUserMeta">({u.username})</span> : null}
+                        <span className="muted mailPickUserMeta">({roleLabel})</span>
+                        {muniLabel ? <span className="muted mailPickUserMeta">— {muniLabel}</span> : null}
                       </span>
                     </label>
                   )
