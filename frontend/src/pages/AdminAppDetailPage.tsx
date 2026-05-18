@@ -1,18 +1,23 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { BackButton } from '../components/BackButton'
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import * as api from "../api";
 import { Modal } from "../components/Modal";
 import { ErrorPopup } from "../components/ErrorPopup";
+import { useSnackbar } from "../snackbar/SnackbarContext";
+import { formatApiErrorMessage } from "../snackbar/formatApiErrorMessage";
 
 export function AdminAppDetailPage({ token }: { token: string }) {
   const { t } = useTranslation();
+  const snack = useSnackbar();
   const params = useParams();
   const appId = Number(params.appId);
 
   const [error, setError] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [modalSubmitting, setModalSubmitting] = useState(false);
   const [app, setApp] = useState<any | null>(null);
   const [versions, setVersions] = useState<any[]>([]);
 
@@ -25,6 +30,29 @@ export function AdminAppDetailPage({ token }: { token: string }) {
   const [releaseNotes, setReleaseNotes] = useState("");
   const [newLogoFile, setNewLogoFile] = useState<File | null>(null);
 
+  const reportPageErr = useCallback(
+    (e: unknown) => {
+      const raw =
+        e instanceof api.ApiError
+          ? e.message
+          : String((e as Error)?.message || "Erreur");
+      const msg = formatApiErrorMessage(raw, t);
+      setError(msg);
+      snack.show(msg, "error");
+    },
+    [t, snack],
+  );
+
+  function reportModalErr(e: unknown) {
+    const raw =
+      e instanceof api.ApiError
+        ? e.message
+        : String((e as Error)?.message || "Erreur");
+    const msg = formatApiErrorMessage(raw, t);
+    setModalError(msg);
+    snack.show(msg, "error");
+  }
+
   async function load() {
     setError(null);
     const res = await api.adminGetApp(token, appId);
@@ -34,9 +62,8 @@ export function AdminAppDetailPage({ token }: { token: string }) {
 
   useEffect(() => {
     if (!Number.isFinite(appId) || !appId) return;
-    load().catch((e) => setError(e.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId]);
+    load().catch(reportPageErr);
+  }, [appId, token, reportPageErr]);
 
   if (!appId) {
     return (
@@ -53,24 +80,17 @@ export function AdminAppDetailPage({ token }: { token: string }) {
         className="row"
         style={{ justifyContent: "space-between", alignItems: "center" }}
       >
-        <div className="row">
-          <Link className="btn" to="/apps">
-            {t("back")}
-          </Link>
-          <div className="title" style={{ marginInlineStart: 8 }}>
-            {app ? app.app_name : "..."}
-          </div>
+        <div className="title" style={{ margin: 0 }}>
+          {app ? app.app_name : "..."}
         </div>
         <div className="row">
           <button className="btn btnPrimary" onClick={() => setAddOpen(true)}>
             + {t("uploadVersion")}
           </button>
-          <button
-            className="btn"
-            onClick={() => load().catch((e) => setError(e.message))}
-          >
+          <button className="btn" onClick={() => load().catch(reportPageErr)}>
             {t("refresh")}
           </button>
+          <BackButton fallbackTo="/apps" />
         </div>
       </div>
 
@@ -83,7 +103,10 @@ export function AdminAppDetailPage({ token }: { token: string }) {
           <div className="muted" style={{ fontWeight: 900 }}>
             {t("appDescription")}
           </div>
-          <div className="muted" style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>
+          <div
+            className="muted"
+            style={{ marginTop: 6, whiteSpace: "pre-wrap" }}
+          >
             {app.description}
           </div>
         </div>
@@ -124,6 +147,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
           onClose={() => {
             setAddOpen(false);
             setModalError(null);
+            setModalSubmitting(false);
             resetForm();
           }}
           error={modalError}
@@ -165,12 +189,14 @@ export function AdminAppDetailPage({ token }: { token: string }) {
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button
                 className="btn btnPrimary"
+                disabled={modalSubmitting}
                 onClick={async () => {
                   try {
                     if (!binaryFile) throw new Error(t("chooseAppFile"));
                     if (!versionNumber.trim())
                       throw new Error(t("versionNumberRequired"));
                     setModalError(null);
+                    setModalSubmitting(true);
                     await api.adminUploadVersion(token, appId, {
                       file: binaryFile,
                       version_number: versionNumber.trim(),
@@ -181,12 +207,15 @@ export function AdminAppDetailPage({ token }: { token: string }) {
                     setModalError(null);
                     resetForm();
                     await load();
-                  } catch (e: any) {
-                    setModalError(e.message);
+                    snack.show(t("snackbarCreated"), "success");
+                  } catch (e: unknown) {
+                    reportModalErr(e);
+                  } finally {
+                    setModalSubmitting(false);
                   }
                 }}
               >
-                {t("upload")}
+                {modalSubmitting ? t("loading") : t("upload")}
               </button>
             </div>
           </div>
@@ -199,6 +228,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
           onClose={() => {
             setEditOpen(null);
             setModalError(null);
+            setModalSubmitting(false);
             setVersionNumber("");
             setReleaseNotes("");
           }}
@@ -224,9 +254,11 @@ export function AdminAppDetailPage({ token }: { token: string }) {
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button
                 className="btn btnPrimary"
+                disabled={modalSubmitting}
                 onClick={async () => {
                   try {
                     setModalError(null);
+                    setModalSubmitting(true);
                     await api.adminUpdateVersion(token, editOpen.id, {
                       version_number:
                         versionNumber.trim() || editOpen.version_number,
@@ -237,12 +269,15 @@ export function AdminAppDetailPage({ token }: { token: string }) {
                     setVersionNumber("");
                     setReleaseNotes("");
                     await load();
-                  } catch (e: any) {
-                    setModalError(e.message);
+                    snack.show(t("snackbarSaved"), "success");
+                  } catch (e: unknown) {
+                    reportModalErr(e);
+                  } finally {
+                    setModalSubmitting(false);
                   }
                 }}
               >
-                {t("save")}
+                {modalSubmitting ? t("loading") : t("save")}
               </button>
             </div>
           </div>
@@ -251,10 +286,13 @@ export function AdminAppDetailPage({ token }: { token: string }) {
 
       {deleteOpen ? (
         <Modal
-          title={t("deleteVersionTitle", { version: deleteOpen.version_number })}
+          title={t("deleteVersionTitle", {
+            version: deleteOpen.version_number,
+          })}
           onClose={() => {
             setDeleteOpen(null);
             setModalError(null);
+            setModalSubmitting(false);
           }}
           error={modalError}
         >
@@ -266,19 +304,24 @@ export function AdminAppDetailPage({ token }: { token: string }) {
               </button>
               <button
                 className="btn btnWarning"
+                disabled={modalSubmitting}
                 onClick={async () => {
                   try {
                     setModalError(null);
+                    setModalSubmitting(true);
                     await api.adminDeleteVersion(token, deleteOpen.id);
                     setDeleteOpen(null);
                     setModalError(null);
                     await load();
-                  } catch (e: any) {
-                    setModalError(e.message);
+                    snack.show(t("snackbarDeleted"), "success");
+                  } catch (e: unknown) {
+                    reportModalErr(e);
+                  } finally {
+                    setModalSubmitting(false);
                   }
                 }}
               >
-                {t("delete")}
+                {modalSubmitting ? t("loading") : t("delete")}
               </button>
             </div>
           </div>

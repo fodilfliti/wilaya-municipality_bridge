@@ -6,6 +6,9 @@ export function AdminNav() {
   return (
     <div className="row" style={{ marginBottom: 12 }}>
       <NavLink to="/" end className="btn">
+        {t('hubTitle')}
+      </NavLink>
+      <NavLink to="/dashboard" className="btn">
         {t('adminDashboard')}
       </NavLink>
       <NavLink to="/apps" className="btn">

@@ -82,7 +82,8 @@ app.use(
   cors({
     origin: corsOrigin || (env.nodeEnv !== "production" ? true : false),
     credentials: Boolean(corsOrigin && corsOrigin.length),
-    maxAge: 600
+    maxAge: 600,
+    exposedHeaders: ["Content-Disposition"],
   })
 );
 

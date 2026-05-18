@@ -15,10 +15,18 @@ function errorHandler(err, req, res, next) {
     "request_failed"
   );
 
-  res.status(status).json({
-    error: message,
-    requestId: req.requestId
-  });
+  const payload = { error: message, requestId: req.requestId };
+  try {
+    const { getEnv } = require("../config/env");
+    const env = getEnv();
+    if (env.nodeEnv !== "production" && err?.message) {
+      payload.detail = String(err.message);
+    }
+  } catch {
+    /* env not ready */
+  }
+
+  res.status(status).json(payload);
 }
 
 module.exports = { errorHandler };

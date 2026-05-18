@@ -30,7 +30,12 @@ async function http<T>(path: string, opts: RequestInit & { token?: string } = {}
 
   const res = await fetch(`${API_URL}${path}`, { ...opts, headers })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new ApiError((data as any).error || 'Erreur', { status: res.status, code: (data as any).code })
+  if (!res.ok) {
+    const base = String((data as any).error || 'Erreur')
+    const detail = (data as any).detail != null ? String((data as any).detail) : ''
+    const msg = detail && detail !== base ? `${base}: ${detail}` : base
+    throw new ApiError(msg, { status: res.status, code: (data as any).code })
+  }
   return data as T
 }
 
@@ -83,6 +88,33 @@ export async function adminCreateMuniUser(token: string, municipalityId: number,
   return http<{ user: any; credentials: { code8: string; pdf_url: string } }>(
     `/admin/municipalities/${municipalityId}/users`,
     { method: 'POST', token, body: JSON.stringify(body) },
+  )
+}
+
+export type CommuneAgentRow = {
+  id: number
+  username: string
+  name: string | null
+  role: 'MUNI_ADMIN'
+  municipality_id: number | null
+  is_blocked: boolean
+  municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+}
+
+export async function adminCommuneAgentsList(
+  token: string,
+  opts: { page?: number; pageSize?: number; q?: string; municipalityId?: number } = {},
+) {
+  const page = opts.page ?? 1
+  const pageSize = opts.pageSize ?? 20
+  const q = opts.q ? `&q=${encodeURIComponent(opts.q)}` : ''
+  const mid =
+    opts.municipalityId != null && Number.isFinite(opts.municipalityId)
+      ? `&municipality_id=${opts.municipalityId}`
+      : ''
+  return http<{ rows: CommuneAgentRow[]; total: number; page: number; pageSize: number }>(
+    `/admin/commune-agents?page=${page}&pageSize=${pageSize}${q}${mid}`,
+    { method: 'GET', token },
   )
 }
 
@@ -423,6 +455,806 @@ export async function muniMailReply(
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as any).error || 'Erreur')
   return data as { message: any }
+}
+
+export type OperationTarget =
+  | { type: 'ALL_COMMUNES' }
+  | { type: 'COMMUNES'; municipality_ids: number[] }
+  | { type: 'USERS'; user_ids: number[] }
+
+export type OperationColumnInput = {
+  key: string
+  label_ar: string
+  label_fr?: string | null
+  column_type: 'BOOLEAN' | 'NUMBER' | 'TEXT' | 'DATE' | 'CHOICE'
+  position?: number
+  is_result?: boolean
+  default_value?: unknown
+  choices?: {
+    value_key: string
+    label_ar: string
+    label_fr?: string | null
+    color_hex: string
+    palette_index?: number | null
+    position?: number
+  }[]
+}
+
+export async function adminOperationPaletteColors(token: string) {
+  return http<{ colors: { id: number; palette_index: number; hex: string }[] }>(
+    '/admin/operations/palette-colors',
+    { method: 'GET', token },
+  )
+}
+
+export async function adminOperationsList(
+  token: string,
+  opts: { page?: number; pageSize?: number; q?: string; status?: 'EN_COURS' | 'ARCHIVE' | '' } = {},
+) {
+  const page = opts.page ?? 1
+  const pageSize = opts.pageSize ?? 20
+  const q = opts.q ? `&q=${encodeURIComponent(opts.q)}` : ''
+  const status =
+    opts.status === 'EN_COURS' || opts.status === 'ARCHIVE' ? `&status=${encodeURIComponent(opts.status)}` : ''
+  return http<{ operations: any[]; total: number; page: number; pageSize: number }>(
+    `/admin/operations?page=${page}&pageSize=${pageSize}${q}${status}`,
+    { method: 'GET', token },
+  )
+}
+
+export async function adminOperationGet(token: string, operationId: number) {
+  return http<{ operation: any }>(`/admin/operations/${operationId}`, { method: 'GET', token })
+}
+
+export async function adminOperationCreate(
+  token: string,
+  body: { title: string; description?: string | null; target: OperationTarget; columns: OperationColumnInput[]; status?: 'EN_COURS' | 'ARCHIVE' },
+) {
+  return http<{ operation: any; notification_mail?: { ok: boolean; thread_id?: number; error?: string } }>(
+    `/admin/operations`,
+    { method: 'POST', token, body: JSON.stringify(body) },
+  )
+}
+
+export async function adminOperationNotifyUpdateMail(token: string, operationId: number, body?: { note?: string }) {
+  return http<{ thread_id: number }>(`/admin/operations/${operationId}/notify-update-mail`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body || {}),
+  })
+}
+
+export async function adminOperationPatch(
+  token: string,
+  operationId: number,
+  body: { title?: string; description?: string | null; status?: 'EN_COURS' | 'ARCHIVE' },
+) {
+  return http<{ operation: any }>(`/admin/operations/${operationId}`, { method: 'PATCH', token, body: JSON.stringify(body) })
+}
+
+export async function adminOperationRecipientsPut(token: string, operationId: number, target: OperationTarget) {
+  return http<{ operation: any }>(`/admin/operations/${operationId}/recipients`, {
+    method: 'PUT',
+    token,
+    body: JSON.stringify({ target }),
+  })
+}
+
+export async function adminOperationAddColumn(token: string, operationId: number, body: OperationColumnInput) {
+  return http<{ operation: any }>(`/admin/operations/${operationId}/columns`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminOperationDeleteColumn(token: string, operationId: number, columnId: number) {
+  return http<{ operation: any }>(`/admin/operations/${operationId}/columns/${columnId}`, { method: 'DELETE', token })
+}
+
+export async function adminOperationUpdateColumn(
+  token: string,
+  operationId: number,
+  columnId: number,
+  body: {
+    label_ar?: string
+    label_fr?: string | null
+    position?: number
+    is_result?: boolean
+    default_value?: unknown | null
+  },
+) {
+  return http<{ operation: any }>(`/admin/operations/${operationId}/columns/${columnId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminOperationAddChoice(
+  token: string,
+  operationId: number,
+  columnId: number,
+  body: {
+    value_key: string
+    label_ar: string
+    label_fr?: string | null
+    color_hex: string
+    palette_index?: number | null
+    position?: number
+  },
+) {
+  return http<{ operation: any }>(`/admin/operations/${operationId}/columns/${columnId}/choices`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminOperationUpdateChoice(
+  token: string,
+  operationId: number,
+  columnId: number,
+  choiceId: number,
+  body: {
+    label_ar?: string
+    label_fr?: string | null
+    color_hex?: string
+    position?: number
+    palette_index?: number | null
+  },
+) {
+  return http<{ operation: any }>(`/admin/operations/${operationId}/columns/${columnId}/choices/${choiceId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminOperationDeleteChoice(token: string, operationId: number, columnId: number, choiceId: number) {
+  return http<{ operation: any }>(`/admin/operations/${operationId}/columns/${columnId}/choices/${choiceId}`, {
+    method: 'DELETE',
+    token,
+  })
+}
+
+export async function adminOperationResults(token: string, operationId: number) {
+  return http<{ operation: any; municipalities: any[]; analytics: Record<string, any>; submission?: { total: number; submitted: number; pending: number } }>(
+    `/admin/operations/${operationId}/results`,
+    { method: 'GET', token },
+  )
+}
+
+function parseFilenameFromContentDisposition(header: string | null): string | null {
+  if (!header) return null
+  const star = /filename\*=(?:UTF-8|utf-8)''([^;\n]+)/i.exec(header)
+  if (star?.[1]) {
+    try {
+      return decodeURIComponent(star[1].trim().replace(/^"+|"+$/g, ''))
+    } catch {
+      /* fall through */
+    }
+  }
+  const quoted = /filename="((?:\\.|[^"\\])*)"/i.exec(header)
+  if (quoted?.[1]) return quoted[1].replace(/\\"/g, '"')
+  const unquoted = /filename=([^;\n]+)/i.exec(header)
+  if (unquoted?.[1]) return unquoted[1].trim().replace(/^"+|"+$/g, '')
+  return null
+}
+
+async function fetchBlobAttachment(path: string, token: string, fallbackFilename: string): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${API_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new ApiError((data as any).error || 'Erreur', { status: res.status })
+  }
+  const fromHeader = parseFilenameFromContentDisposition(res.headers.get('content-disposition'))
+  const blob = await res.blob()
+  return { blob, filename: fromHeader || fallbackFilename }
+}
+
+export async function downloadAdminOperationXlsx(token: string, operationId: number, locale: 'ar' | 'fr' = 'ar') {
+  const path = `/admin/operations/${operationId}/export.xlsx?locale=${locale}`
+  return fetchBlobAttachment(path, token, `operation-${operationId}.xlsx`)
+}
+
+export async function downloadAdminOperationSubmissionXlsx(token: string, operationId: number, locale: 'ar' | 'fr' = 'ar') {
+  const path = `/admin/operations/${operationId}/export-submission.xlsx?locale=${locale}`
+  return fetchBlobAttachment(path, token, `operation-${operationId}-submission.xlsx`)
+}
+
+export type BackupServerLine = {
+  id: number
+  existe: boolean
+  server_type: string | null
+  configured: boolean
+  os_type: string | null
+  os_active: boolean
+  anomalie: string | null
+  submitted_at?: string | null
+  updated_at?: string | null
+  display_order?: number
+}
+
+export type BackupServerStatusPayload = {
+  municipalities: Array<{
+    municipality: { id: number; code: string; name_ar: string; name_fr: string }
+    servers: BackupServerLine[]
+    has_submitted: boolean
+  }>
+  submission: { total: number; submitted: number; pending: number }
+  analytics: {
+    existe: { yes: number; no: number }
+    configured: { yes: number; no: number }
+    os_active: { yes: number; no: number }
+    anomalies_nonempty: number
+  }
+}
+
+export async function adminBackupServerStatusList(token: string, opts?: { municipalityId?: number }) {
+  const q = opts?.municipalityId != null ? `?municipalityId=${opts.municipalityId}` : ''
+  return http<BackupServerStatusPayload>(`/admin/etat-principale/backup-servers${q}`, { method: 'GET', token })
+}
+
+export async function adminBackupServerStatusPatchMunicipality(
+  token: string,
+  municipalityId: number,
+  body: {
+    servers?: Array<{
+      id?: number
+      existe: boolean
+      server_type?: string | null
+      configured: boolean
+      os_type?: string | null
+      os_active: boolean
+      anomalie?: string | null
+    }>
+    existe?: boolean
+    server_type?: string | null
+    configured?: boolean
+    os_type?: string | null
+    os_active?: boolean
+    anomalie?: string | null
+  },
+) {
+  return http<BackupServerStatusPayload>(`/admin/etat-principale/backup-servers/${municipalityId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function downloadAdminBackupServerStatusXlsx(
+  token: string,
+  locale: 'ar' | 'fr' = 'ar',
+  opts?: { municipalityId?: number },
+) {
+  const params = new URLSearchParams({ locale })
+  if (opts?.municipalityId != null) params.set('municipalityId', String(opts.municipalityId))
+  const path = `/admin/etat-principale/backup-servers/export.xlsx?${params}`
+  return fetchBlobAttachment(path, token, `backup-servers-wilaya.xlsx`)
+}
+
+export async function muniOperationsList(
+  token: string,
+  opts: { page?: number; pageSize?: number; q?: string; status?: '' | 'EN_COURS' | 'ARCHIVE' } = {},
+) {
+  const page = opts.page ?? 1
+  const pageSize = opts.pageSize ?? 20
+  const q = opts.q ? `&q=${encodeURIComponent(opts.q)}` : ''
+  const st =
+    opts.status === 'EN_COURS' || opts.status === 'ARCHIVE' ? `&status=${encodeURIComponent(opts.status)}` : ''
+  return http<{ operations: any[]; total: number; page: number; pageSize: number }>(
+    `/muni/operations?page=${page}&pageSize=${pageSize}${q}${st}`,
+    { method: 'GET', token },
+  )
+}
+
+export async function muniOperationGet(token: string, operationId: number) {
+  return http<{ operation: any }>(`/muni/operations/${operationId}`, { method: 'GET', token })
+}
+
+export async function muniOperationSheetGet(token: string, operationId: number) {
+  return http<{ sheet: any | null; municipality_id: number }>(`/muni/operations/${operationId}/sheet`, { method: 'GET', token })
+}
+
+export async function muniOperationSheetPut(token: string, operationId: number, rows: { row_index?: number; cells: Record<string, unknown> }[]) {
+  return http<{ sheet: any }>(`/muni/operations/${operationId}/sheet`, {
+    method: 'PUT',
+    token,
+    body: JSON.stringify({ rows }),
+  })
+}
+
+export async function downloadMuniOperationXlsx(token: string, operationId: number, locale: 'ar' | 'fr' = 'ar') {
+  const path = `/muni/operations/${operationId}/export.xlsx?locale=${locale}`
+  return fetchBlobAttachment(path, token, `operation-${operationId}-commune.xlsx`)
+}
+
+export async function muniBackupServerStatusGet(token: string) {
+  return http<{
+    municipality_id: number
+    municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+    servers: BackupServerLine[]
+    submitted_at: string | null
+  }>(`/muni/etat-principale/backup-servers`, { method: 'GET', token })
+}
+
+export async function muniBackupServerStatusPatch(
+  token: string,
+  body: {
+    servers?: Array<{
+      id?: number
+      existe: boolean
+      server_type?: string | null
+      configured: boolean
+      os_type?: string | null
+      os_active: boolean
+      anomalie?: string | null
+    }>
+    existe?: boolean
+    server_type?: string | null
+    configured?: boolean
+    os_type?: string | null
+    os_active?: boolean
+    anomalie?: string | null
+    submit?: boolean
+  },
+) {
+  return http<{
+    municipality_id: number
+    municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+    servers: BackupServerLine[]
+    submitted_at: string | null
+  }>(`/muni/etat-principale/backup-servers`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function downloadMuniBackupServerStatusXlsx(token: string, locale: 'ar' | 'fr' = 'ar') {
+  const path = `/muni/etat-principale/backup-servers/export.xlsx?locale=${locale}`
+  return fetchBlobAttachment(path, token, `backup-servers-commune.xlsx`)
+}
+
+export type McltWorkstationLine = {
+  id: number
+  ip_mclt: string | null
+  pc_usage: string | null
+  installed_application: string | null
+  windows_version: string | null
+  pc_name: string | null
+  antivirus_name: string | null
+  ip_rnc_authorized: string | null
+  ip_rnc_requested: string | null
+  rnc_auth_status: 'none' | 'pending' | 'approved' | 'rejected'
+  rnc_auth_requested_at?: string | null
+  submitted_at?: string | null
+  updated_at?: string | null
+  display_order?: number
+}
+
+export type McltWorkstationPayload = {
+  municipalities: Array<{
+    municipality: { id: number; code: string; name_ar: string; name_fr: string }
+    workstations: McltWorkstationLine[]
+    has_submitted: boolean
+  }>
+  submission: { total: number; submitted: number; pending: number }
+  analytics: { rnc_pending: number; rnc_approved: number }
+}
+
+export async function adminMcltWorkstationsList(token: string, opts?: { municipalityId?: number }) {
+  const q = opts?.municipalityId != null ? `?municipalityId=${opts.municipalityId}` : ''
+  return http<McltWorkstationPayload>(`/admin/etat-principale/mclt-workstations${q}`, { method: 'GET', token })
+}
+
+export async function adminMcltWorkstationsPatchMunicipality(
+  token: string,
+  municipalityId: number,
+  body: {
+    workstations: Array<{
+      id?: number
+      ip_mclt?: string | null
+      pc_usage?: string | null
+      installed_application?: string | null
+      windows_version?: string | null
+      pc_name?: string | null
+      antivirus_name?: string | null
+      ip_rnc_authorized?: string | null
+      ip_rnc_requested?: string | null
+      rnc_auth_status?: string
+    }>
+  },
+) {
+  return http<McltWorkstationPayload>(`/admin/etat-principale/mclt-workstations/${municipalityId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function downloadAdminMcltWorkstationsXlsx(
+  token: string,
+  locale: 'ar' | 'fr' = 'ar',
+  opts?: { municipalityId?: number },
+) {
+  const params = new URLSearchParams({ locale })
+  if (opts?.municipalityId != null) params.set('municipalityId', String(opts.municipalityId))
+  const path = `/admin/etat-principale/mclt-workstations/export.xlsx?${params}`
+  return fetchBlobAttachment(path, token, `mclt-wilaya.xlsx`)
+}
+
+export async function muniMcltWorkstationsGet(token: string) {
+  return http<{
+    municipality_id: number
+    municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+    workstations: McltWorkstationLine[]
+    submitted_at: string | null
+  }>(`/muni/etat-principale/mclt-workstations`, { method: 'GET', token })
+}
+
+export async function muniMcltWorkstationsPatch(
+  token: string,
+  body: {
+    workstations: Array<{
+      id?: number
+      ip_mclt?: string | null
+      pc_usage?: string | null
+      installed_application?: string | null
+      windows_version?: string | null
+      pc_name?: string | null
+      antivirus_name?: string | null
+      ip_rnc_requested?: string | null
+    }>
+    submit?: boolean
+  },
+) {
+  return http<{
+    municipality_id: number
+    municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+    workstations: McltWorkstationLine[]
+    submitted_at: string | null
+  }>(`/muni/etat-principale/mclt-workstations`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function muniMcltRequestRncAuthorization(
+  token: string,
+  workstationId: number,
+  body: { request_mode: 'specific' | 'generic'; ip_rnc_requested?: string | null },
+) {
+  return http<{
+    workstation: McltWorkstationLine
+    municipality: { id: number; code: string; name_ar: string; name_fr: string }
+    mail_thread_id: number | null
+    request_mode?: string
+  }>(`/muni/etat-principale/mclt-workstations/${workstationId}/request-rnc-authorization`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function downloadMuniMcltWorkstationsXlsx(token: string, locale: 'ar' | 'fr' = 'ar') {
+  const path = `/muni/etat-principale/mclt-workstations/export.xlsx?locale=${locale}`
+  return fetchBlobAttachment(path, token, `mclt-commune.xlsx`)
+}
+
+export type AnnexRncLine = {
+  id: number
+  municipality_annex_id: number
+  annex_name?: string | null
+  ip_authorized: string | null
+  authorization_year: string | null
+  authorized_ip_count: string | null
+  pc_used: string | null
+  ip_requested: string | null
+  rnc_auth_status: 'none' | 'pending' | 'approved' | 'rejected'
+  rnc_auth_requested_at?: string | null
+  submitted_at?: string | null
+  updated_at?: string | null
+  display_order?: number
+}
+
+export type AnnexRncPayload = {
+  municipalities: Array<{
+    municipality: { id: number; code: string; name_ar: string; name_fr: string }
+    lines: AnnexRncLine[]
+    has_submitted: boolean
+  }>
+  submission: { total: number; submitted: number; pending: number }
+  analytics: { rnc_pending: number; rnc_approved: number }
+}
+
+export async function adminAnnexRncList(token: string, opts?: { municipalityId?: number }) {
+  const q = opts?.municipalityId != null ? `?municipalityId=${opts.municipalityId}` : ''
+  return http<AnnexRncPayload>(`/admin/etat-principale/annex-rnc-authorizations${q}`, { method: 'GET', token })
+}
+
+export async function adminAnnexRncPatchMunicipality(
+  token: string,
+  municipalityId: number,
+  body: {
+    lines: Array<{
+      id?: number
+      municipality_annex_id?: number
+      ip_authorized?: string | null
+      authorization_year?: string | null
+      authorized_ip_count?: string | null
+      pc_used?: string | null
+      ip_requested?: string | null
+      rnc_auth_status?: string
+    }>
+  },
+) {
+  return http<AnnexRncPayload>(`/admin/etat-principale/annex-rnc-authorizations/${municipalityId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function downloadAdminAnnexRncXlsx(
+  token: string,
+  locale: 'ar' | 'fr' = 'ar',
+  opts?: { municipalityId?: number },
+) {
+  const params = new URLSearchParams({ locale })
+  if (opts?.municipalityId != null) params.set('municipalityId', String(opts.municipalityId))
+  const path = `/admin/etat-principale/annex-rnc-authorizations/export.xlsx?${params}`
+  return fetchBlobAttachment(path, token, `annex-rnc-wilaya.xlsx`)
+}
+
+export async function muniAnnexRncGet(token: string) {
+  return http<{
+    municipality_id: number
+    municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+    annexes: Array<{ id: number; name: string }>
+    lines: AnnexRncLine[]
+    submitted_at: string | null
+  }>(`/muni/etat-principale/annex-rnc-authorizations`, { method: 'GET', token })
+}
+
+export async function muniAnnexRncPatch(
+  token: string,
+  body: {
+    lines: Array<{
+      id?: number
+      municipality_annex_id?: number
+      pc_used?: string | null
+      ip_requested?: string | null
+    }>
+    submit?: boolean
+  },
+) {
+  return http<{
+    municipality_id: number
+    municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+    annexes: Array<{ id: number; name: string }>
+    lines: AnnexRncLine[]
+    submitted_at: string | null
+  }>(`/muni/etat-principale/annex-rnc-authorizations`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function muniAnnexRncRequestAuthorization(token: string, lineId: number) {
+  return http<{
+    line: AnnexRncLine
+    municipality: { id: number; code: string; name_ar: string; name_fr: string }
+    mail_thread_id: number | null
+  }>(`/muni/etat-principale/annex-rnc-authorizations/${lineId}/request-rnc-authorization`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify({}),
+  })
+}
+
+export async function downloadMuniAnnexRncXlsx(token: string, locale: 'ar' | 'fr' = 'ar') {
+  const path = `/muni/etat-principale/annex-rnc-authorizations/export.xlsx?locale=${locale}`
+  return fetchBlobAttachment(path, token, `annex-rnc-commune.xlsx`)
+}
+
+export async function adminListMunicipalityAnnexes(token: string, municipalityId: number) {
+  return http<{ annexes: any[]; statuses: string[]; ville_positions: string[] }>(
+    `/admin/municipalities/${municipalityId}/annexes`,
+    { method: 'GET', token },
+  )
+}
+
+export async function adminCreateMunicipalityAnnex(
+  token: string,
+  municipalityId: number,
+  body: {
+    name: string
+    phone_numbers?: string | null
+    status?: string
+    ville_position?: string
+  },
+) {
+  return http<{ annex: any }>(`/admin/municipalities/${municipalityId}/annexes`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminUpdateMunicipalityAnnex(
+  token: string,
+  municipalityId: number,
+  annexId: number,
+  body: {
+    name?: string
+    phone_numbers?: string | null
+    status?: string
+    ville_position?: string
+  },
+) {
+  return http<{ annex: any }>(`/admin/municipalities/${municipalityId}/annexes/${annexId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminDeleteMunicipalityAnnex(token: string, municipalityId: number, annexId: number) {
+  return http<{ success: boolean }>(`/admin/municipalities/${municipalityId}/annexes/${annexId}`, {
+    method: 'DELETE',
+    token,
+  })
+}
+
+export async function muniListAnnexes(token: string) {
+  return http<{ annexes: any[]; statuses: string[]; ville_positions: string[] }>(`/muni/annexes`, {
+    method: 'GET',
+    token,
+  })
+}
+
+export async function muniPatchAnnexStatus(token: string, annexId: number, body: { status: string }) {
+  return http<{ annex: any }>(`/muni/annexes/${annexId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export type CommuneItStaffRow = {
+  id: number
+  municipality_id: number
+  municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+  first_name: string
+  last_name: string
+  nin: string | null
+  phone: string
+  email: string | null
+  programming_languages: string
+  created_at: string
+  updated_at: string
+}
+
+export async function adminCommuneItStaffList(
+  token: string,
+  opts: { page?: number; pageSize?: number; q?: string; municipalityId?: number } = {},
+) {
+  const page = opts.page ?? 1
+  const pageSize = opts.pageSize ?? 20
+  const q = opts.q ? `&q=${encodeURIComponent(opts.q)}` : ''
+  const mid = opts.municipalityId ? `&municipality_id=${opts.municipalityId}` : ''
+  return http<{ rows: CommuneItStaffRow[]; total: number; page: number; pageSize: number }>(
+    `/admin/commune-it-staff?page=${page}&pageSize=${pageSize}${q}${mid}`,
+    { method: 'GET', token },
+  )
+}
+
+export async function adminCommuneItStaffCreate(
+  token: string,
+  body: {
+    municipality_id: number
+    first_name: string
+    last_name: string
+    nin?: string | null
+    phone: string
+    email?: string | null
+    programming_languages: string
+  },
+) {
+  return http<{ row: CommuneItStaffRow }>(`/admin/commune-it-staff`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminCommuneItStaffUpdate(
+  token: string,
+  id: number,
+  body: Partial<{
+    municipality_id: number
+    first_name: string
+    last_name: string
+    nin: string | null
+    phone: string
+    email: string | null
+    programming_languages: string
+  }>,
+) {
+  return http<{ row: CommuneItStaffRow }>(`/admin/commune-it-staff/${id}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminCommuneItStaffDelete(token: string, id: number) {
+  return http<{ success: boolean }>(`/admin/commune-it-staff/${id}`, { method: 'DELETE', token })
+}
+
+export async function downloadAdminCommuneItStaffXlsx(
+  token: string,
+  opts: { locale?: 'ar' | 'fr'; municipalityId?: number } = {},
+) {
+  const locale = opts.locale || 'ar'
+  let path = `/admin/commune-it-staff/export.xlsx?locale=${locale}`
+  if (opts.municipalityId) path += `&municipality_id=${opts.municipalityId}`
+  return fetchBlobAttachment(path, token, `it-staff-wilaya.xlsx`)
+}
+
+export async function muniCommuneItStaffList(token: string) {
+  return http<{ rows: CommuneItStaffRow[] }>(`/muni/commune-it-staff`, { method: 'GET', token })
+}
+
+export async function muniCommuneItStaffCreate(
+  token: string,
+  body: {
+    first_name: string
+    last_name: string
+    nin?: string | null
+    phone: string
+    email?: string | null
+    programming_languages: string
+  },
+) {
+  return http<{ row: CommuneItStaffRow }>(`/muni/commune-it-staff`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function muniCommuneItStaffUpdate(
+  token: string,
+  id: number,
+  body: Partial<{
+    first_name: string
+    last_name: string
+    nin: string | null
+    phone: string
+    email: string | null
+    programming_languages: string
+  }>,
+) {
+  return http<{ row: CommuneItStaffRow }>(`/muni/commune-it-staff/${id}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function muniCommuneItStaffDelete(token: string, id: number) {
+  return http<{ success: boolean }>(`/muni/commune-it-staff/${id}`, { method: 'DELETE', token })
+}
+
+export async function downloadMuniCommuneItStaffXlsx(token: string, locale: 'ar' | 'fr' = 'ar') {
+  const path = `/muni/commune-it-staff/export.xlsx?locale=${locale}`
+  return fetchBlobAttachment(path, token, `it-staff-commune.xlsx`)
 }
 
 export async function muniMailPrivateReply(

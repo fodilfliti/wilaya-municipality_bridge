@@ -6,16 +6,27 @@ const bcrypt = require("bcryptjs");
 
 const { requireAuth, attachUser, checkBlocked, requireRole } = require("../middleware/auth");
 const { Op } = require("sequelize");
-const { Application, AppVersion, Municipality, User, Download, MailThread, MailMessage, MailRecipient, MailAttachment, sequelize } = require("../db");
+const { Application, AppVersion, Municipality, User, Download, MailThread, MailMessage, MailRecipient, MailAttachment, sequelize, BackupServerStatus } = require("../db");
 const { audit } = require("../services/audit");
 const { withTxAudit } = require("../services/txAudit");
 const { storageRoot, publicFileUrl } = require("../services/storage");
 const { generate8DigitCode, generateUsernameFromMunicipalityCode } = require("../services/security");
 const { generateCredentialsPdf, generateVersionProgressPdf } = require("../services/pdf");
+const { operationsAdminRouter } = require("./operationsAdmin");
+const { communeItStaffAdminRouter } = require("./communeItStaffAdmin");
+const { communeAgentsAdminRouter } = require("./communeAgentsAdmin");
+const { etatPrincipaleAdminRouter } = require("./etatPrincipaleAdmin");
+const { createThreadWithRecipients } = require("../services/mailThreadCreate");
+const municipalityAnnexService = require("../modules/annexes/municipalityAnnexService");
 
 const adminRouter = express.Router();
 
 adminRouter.use(requireAuth, attachUser, checkBlocked, requireRole("SUPER_ADMIN"));
+
+adminRouter.use(operationsAdminRouter);
+adminRouter.use(communeItStaffAdminRouter);
+adminRouter.use(communeAgentsAdminRouter);
+adminRouter.use(etatPrincipaleAdminRouter);
 
 const uploadLogo = multer({
   storage: multer.diskStorage({
@@ -635,6 +646,16 @@ adminRouter.post("/municipalities", async (req, res, next) => {
       { entity: { type: "Municipality", id: null }, after: { name_ar, name_fr, code } },
       async (transaction) => {
         const muni = await Municipality.create({ name_ar, name_fr, code }, { transaction });
+        await BackupServerStatus.create(
+          {
+            municipality_id: muni.id,
+            display_order: 0,
+            existe: false,
+            configured: false,
+            os_active: false
+          },
+          { transaction }
+        );
         return { muni };
       }
     );
@@ -864,6 +885,60 @@ adminRouter.get("/municipalities/:municipalityId/apps", async (req, res, next) =
       municipality: { id: muni.id, code: muni.code, name_ar: muni.name_ar, name_fr: muni.name_fr },
       apps: perApp
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/municipalities/:municipalityId/annexes", async (req, res, next) => {
+  try {
+    const muni = await Municipality.findByPk(req.params.municipalityId);
+    if (!muni) return res.status(404).json({ error: "Municipality not found" });
+    const annexes = await municipalityAnnexService.listByMunicipalityId(muni.id);
+    res.json({
+      annexes,
+      statuses: municipalityAnnexService.ANNEX_STATUSES,
+      ville_positions: municipalityAnnexService.ANNEX_VILLE_POSITIONS
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.post("/municipalities/:municipalityId/annexes", async (req, res, next) => {
+  try {
+    const muni = await Municipality.findByPk(req.params.municipalityId);
+    if (!muni) return res.status(404).json({ error: "Municipality not found" });
+    const out = await municipalityAnnexService.createForMunicipality(muni.id, req.body || {});
+    if (out.error) return res.status(out.status).json({ error: out.error });
+    await audit(req.user.id, "MUNICIPALITY_ANNEX_CREATE", { municipality_id: muni.id, annex_id: out.annex.id }, { req });
+    res.status(201).json(out);
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.patch("/municipalities/:municipalityId/annexes/:annexId", async (req, res, next) => {
+  try {
+    const muni = await Municipality.findByPk(req.params.municipalityId);
+    if (!muni) return res.status(404).json({ error: "Municipality not found" });
+    const out = await municipalityAnnexService.updateAdmin(muni.id, req.params.annexId, req.body || {});
+    if (out.error) return res.status(out.status).json({ error: out.error });
+    await audit(req.user.id, "MUNICIPALITY_ANNEX_UPDATE", { municipality_id: muni.id, annex_id: out.annex.id }, { req });
+    res.json(out);
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.delete("/municipalities/:municipalityId/annexes/:annexId", async (req, res, next) => {
+  try {
+    const muni = await Municipality.findByPk(req.params.municipalityId);
+    if (!muni) return res.status(404).json({ error: "Municipality not found" });
+    const out = await municipalityAnnexService.deleteAdmin(muni.id, req.params.annexId);
+    if (out.error) return res.status(out.status).json({ error: out.error });
+    await audit(req.user.id, "MUNICIPALITY_ANNEX_DELETE", { municipality_id: muni.id, annex_id: Number(req.params.annexId) }, { req });
+    res.json(out);
   } catch (e) {
     next(e);
   }
@@ -1261,128 +1336,6 @@ async function touchSeenAndRead(req, threadId, transaction) {
   }
   await audit(req.user.id, "MAIL_THREAD_READ", { thread_id: Number(threadId), last_read_at: now }, { req, transaction });
   return rec;
-}
-
-async function createThreadWithRecipients(opts) {
-  const {
-    req,
-    subject,
-    body_html,
-    recipients,
-    attachments
-  } = opts;
-
-  return sequelize.transaction(async (transaction) => {
-    const now = new Date();
-    const thread = await MailThread.create(
-      {
-        subject,
-        created_by_user_id: req.user.id,
-        created_by_municipality_id: req.user.role === "MUNI_ADMIN" ? req.user.municipality_id : null,
-        last_message_at: now,
-        created_at: now
-      },
-      { transaction }
-    );
-
-    const msg = await MailMessage.create(
-      {
-        thread_id: thread.id,
-        author_user_id: req.user.id,
-        author_municipality_id: req.user.role === "MUNI_ADMIN" ? req.user.municipality_id : null,
-        body_html,
-        created_at: now
-      },
-      { transaction }
-    );
-
-    const seenKey = (r) => `${Number(r.user_id)}:${r.recipient_kind}:${r.recipient_municipality_id ? Number(r.recipient_municipality_id) : ""}`;
-    const uniqueRecipients = [];
-    const seen = new Set();
-    for (const r of recipients || []) {
-      const u = Number(r.user_id);
-      if (!u) continue;
-      const item = {
-        user_id: u,
-        recipient_kind: r.recipient_kind,
-        recipient_municipality_id: r.recipient_municipality_id ?? null
-      };
-      const k = seenKey(item);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      uniqueRecipients.push(item);
-    }
-
-    for (const r of uniqueRecipients) {
-      await MailRecipient.create(
-        {
-          thread_id: thread.id,
-          user_id: r.user_id,
-          recipient_kind: r.recipient_kind,
-          recipient_municipality_id: r.recipient_municipality_id,
-          created_at: now
-        },
-        { transaction }
-      );
-    }
-
-    // Ensure sender is a recipient, and mark sender as read/seen immediately (so it never shows unread for the creator)
-    const senderAlready = uniqueRecipients.some((r) => Number(r.user_id) === Number(req.user.id));
-    if (!senderAlready) {
-      await MailRecipient.create(
-        {
-          thread_id: thread.id,
-          user_id: req.user.id,
-          recipient_kind: "DIRECT_USER",
-          recipient_municipality_id: null,
-          last_read_at: now,
-          first_seen_at: now,
-          last_seen_at: now,
-          created_at: now
-        },
-        { transaction }
-      );
-    } else {
-      await MailRecipient.update(
-        { last_read_at: now, first_seen_at: now, last_seen_at: now },
-        { where: { thread_id: thread.id, user_id: req.user.id }, transaction }
-      );
-    }
-
-    if (Array.isArray(attachments) && attachments.length) {
-      for (const f of attachments) {
-        const rel = `mail/${f.filename}`.replace(/\\/g, "/");
-        const url = publicFileUrl(rel);
-        await MailAttachment.create(
-          {
-            message_id: msg.id,
-            filename: String(f.originalname || "file").slice(0, 1024),
-            mime_type: String(f.mimetype || "application/octet-stream").slice(0, 255),
-            size_bytes: Number(f.size || 0),
-            file_url: url,
-            created_at: now
-          },
-          { transaction }
-        );
-        await audit(
-          req.user.id,
-          "MAIL_ATTACHMENT_UPLOAD",
-          { thread_id: thread.id, message_id: msg.id, filename: String(f.originalname || ""), size_bytes: Number(f.size || 0) },
-          { req, transaction }
-        );
-      }
-    }
-
-    await audit(
-      req.user.id,
-      "MAIL_THREAD_CREATE",
-      { thread_id: thread.id, subject, recipients_count: uniqueRecipients.length },
-      { req, transaction }
-    );
-    await audit(req.user.id, "MAIL_MESSAGE_CREATE", { thread_id: thread.id, message_id: msg.id }, { req, transaction });
-
-    return { thread, msg };
-  });
 }
 
 adminRouter.get("/mail/threads", async (req, res, next) => {

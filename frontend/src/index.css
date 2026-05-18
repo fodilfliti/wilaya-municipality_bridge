@@ -60,11 +60,101 @@ select {
 }
 
 .topbar {
-  display: flex;
+  display: grid;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 0 18px;
+  gap: 12px 16px;
+  padding: 12px 0 16px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar--3 {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.topbar--2 {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.topbar--3 .topbarBrand {
+  justify-self: start;
+}
+
+.topbar--3 .topbarNav {
+  justify-self: center;
+}
+
+.topbar--3 .actions {
+  justify-self: end;
+}
+
+.topbar--2 .topbarBrand {
+  justify-self: start;
+}
+
+.topbar--2 .actions {
+  justify-self: end;
+}
+
+.topbarBrand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.topbarBrand .chip {
+  max-width: 100%;
+}
+
+.chipSm {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.topbarNav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.topbarNav .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbarNavHome {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.btnLangToggle {
+  min-width: 3rem;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 720px) {
+  .topbar--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar--3 .topbarBrand,
+  .topbar--3 .topbarNav,
+  .topbar--3 .actions {
+    justify-self: stretch;
+  }
+
+  .topbar--3 .actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
 }
 
 .brand {
@@ -90,6 +180,69 @@ select {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.topbarProfile {
+  position: relative;
+}
+
+.topbarProfileToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbarProfileIcon {
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+.topbarProfileChevron {
+  font-size: 0.75em;
+  opacity: 0.75;
+}
+
+.topbarProfilePanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-end: 0;
+  min-width: 208px;
+  max-width: min(280px, calc(100vw - 24px));
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  z-index: 200;
+  padding: 0;
+  overflow: hidden;
+}
+
+.topbarProfileHeader {
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.35;
+  border-bottom: 1px solid var(--border);
+  word-break: break-word;
+}
+
+.topbarProfileItem {
+  display: block;
+  width: 100%;
+  text-align: inherit;
+  padding: 11px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.topbarProfileItem:hover {
+  background: rgba(29, 78, 216, 0.08);
+}
+
+.topbarProfileItemDanger:hover {
+  background: rgba(185, 28, 28, 0.08);
 }
 
 .btn {
@@ -162,6 +315,180 @@ select {
   border-radius: 16px;
   box-shadow: var(--shadow);
   padding: 16px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: start;
+  vertical-align: top;
+}
+
+.table th {
+  background: var(--field2);
+  font-weight: 700;
+}
+
+.table tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.opsTextCell {
+  min-height: 3.25rem;
+  max-width: 28rem;
+  width: 100%;
+  resize: vertical;
+}
+
+.opsDescriptionField {
+  min-height: 4.5rem;
+  max-width: 100%;
+  resize: vertical;
+}
+
+.opsPaletteDrop {
+  position: relative;
+  min-width: 200px;
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.opsPaletteDrop--compact {
+  min-width: 160px;
+  flex: 1 1 180px;
+  max-width: 280px;
+}
+
+.opsPaletteDropTrigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--field);
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+  color: var(--text);
+  box-shadow: var(--shadowSm);
+}
+
+.opsPaletteDropTrigger:hover {
+  border-color: rgba(29, 78, 216, 0.28);
+}
+
+.opsPaletteDropSwatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  flex-shrink: 0;
+}
+
+.opsPaletteDropTriggerText {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opsPaletteDropCaret {
+  flex-shrink: 0;
+  opacity: 0.55;
+  font-size: 11px;
+}
+
+.opsPaletteDropMenu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.opsPaletteSwatchBtn {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 36px;
+  margin: 0 auto;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.opsPaletteSwatchBtn:hover {
+  transform: scale(1.05);
+}
+
+.opsPaletteSwatchBtnActive {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.35);
+}
+
+.opsColToolbar {
+  align-items: flex-end;
+}
+
+.opsColToolbarSpacer {
+  flex: 1 1 12px;
+  min-width: 8px;
+}
+
+.opsIsResultLabel {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.btnIconDanger {
+  min-width: 2.5rem;
+  padding: 7px 10px;
+  font-size: 16px;
+  line-height: 1;
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.btnIconDanger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(220, 38, 38, 0.65);
+}
+
+.btnIconDanger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.opsChoiceRow {
+  align-items: flex-end;
+}
+
+@media (max-width: 520px) {
+  .opsPaletteDropMenu {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 }
 
 /* Light inner containers inside a main card (filters, lists, etc.) */
@@ -524,3 +851,250 @@ select {
   font-size: 14px;
   opacity: 0.95;
 }
+
+/* Hub launcher (main home) */
+.hubGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .hubGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 960px) {
+  .hubGrid:not(.hubGridCompact):not(.hubGridPair) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Hub: two main tiles side by side (e.g. Tableau + Applications) */
+.hubGridPair {
+  max-width: 720px;
+}
+
+@media (min-width: 640px) {
+  .hubGrid.hubGridPair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .hubGrid.hubGridPair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.hubGridCompact {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 560px) {
+  .hubGridCompact {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.hubTile {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadowSm);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+button.hubTile {
+  cursor: pointer;
+  font: inherit;
+  text-align: start;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hubTile:hover {
+  border-color: rgba(29, 78, 216, 0.35);
+  box-shadow: rgba(29, 78, 216, 0.12) 0 10px 24px;
+  transform: translateY(-1px);
+}
+
+.hubTileCompact {
+  padding: 14px 16px;
+}
+
+.hubTileIcon {
+  font-size: 32px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.hubTileIconSm {
+  font-size: 26px;
+}
+
+.hubTileBody {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hubTileTitle {
+  font-weight: 800;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.hubTileDesc {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+a.hubTile.active,
+button.hubTile.active {
+  border-color: rgba(29, 78, 216, 0.45);
+  box-shadow: rgba(29, 78, 216, 0.15) 0 10px 26px;
+  background: rgba(29, 78, 216, 0.06);
+}
+
+.muniDetailNavGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (min-width: 720px) {
+  .muniDetailNavGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Commune état principal forms: guided steps (MCLT, annex RNC, …) */
+.etatMuniStepsGuide {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(29, 78, 216, 0.06);
+  border: 1px solid rgba(29, 78, 216, 0.14);
+  display: grid;
+  gap: 10px;
+}
+
+.etatMuniStepRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.etatMuniStepNum {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(29, 78, 216, 0.15);
+  color: #1d4ed8;
+  font-weight: 800;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.etatMuniWorkflowStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.etatMuniLineCards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.etatMuniLineCard {
+  padding: 12px 14px;
+}
+
+.etatMuniLineFields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 520px) {
+  .etatMuniLineFields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .etatMuniLineFields .etatMuniFieldFull {
+    grid-column: 1 / -1;
+  }
+}
+
+.etatMuniRncBlock {
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(241, 245, 249, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.etatMuniRncOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.etatMuniRncOption {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.etatMuniLineFooter {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.etatMuniActionPanel {
+  max-width: 560px;
+  padding: 12px 14px;
+}
+
+.etatMuniTransmitPanel {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.etatMuniPanelHead {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.etatMuniRncStepLabel {
+  margin: 0 0 6px;
+  padding: 0;
+  border: none;
+  font-weight: 600;
+}
+
+.chipWarn {
+  background: rgba(249, 115, 22, 0.15);
+  border-color: rgba(249, 115, 22, 0.35);
+  color: #c2410c;
+}
+

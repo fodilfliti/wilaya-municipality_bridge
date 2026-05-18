@@ -1,3 +1,13 @@
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error(
+    "DATABASE_URL is not set. Create backend/.env from .env.example (Sequelize CLI does not load server.js, so env is loaded here)."
+  );
+}
+
 const common = {
   dialect: "postgres",
   logging: process.env.SEQUELIZE_LOGGING === "true" ? console.log : false
@@ -6,15 +16,15 @@ const common = {
 module.exports = {
   development: {
     ...common,
-    url: process.env.DATABASE_URL
+    url: databaseUrl
   },
   test: {
     ...common,
-    url: process.env.DATABASE_URL
+    url: databaseUrl
   },
   production: {
     ...common,
-    url: process.env.DATABASE_URL,
+    url: databaseUrl,
     dialectOptions: process.env.PGSSLMODE === "require" ? { ssl: { require: true, rejectUnauthorized: false } } : {}
   }
 };

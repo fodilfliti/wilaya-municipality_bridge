@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import * as api from '../api'
+import { BackButton } from '../components/BackButton'
 import { Modal } from '../components/Modal'
 import { RichTextEditor } from '../components/RichTextEditor'
+import { useSnackbar } from '../snackbar/SnackbarContext'
+import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -17,6 +20,7 @@ function fmt(dt: string) {
 
 export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' | 'muni' }) {
   const { t, i18n } = useTranslation()
+  const snack = useSnackbar()
   const { threadId } = useParams()
   const nav = useNavigate()
 
@@ -77,8 +81,12 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
     try {
       const res = await api.adminMailRecipients(token, id)
       setSeenRows(res.recipients || [])
-    } catch (e: any) {
-      setSeenError(e?.message || 'Erreur')
+    } catch (e: unknown) {
+      const raw =
+        e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
+      const msg = formatApiErrorMessage(raw, t)
+      setSeenError(msg)
+      snack.show(msg, 'error')
     }
   }
 
@@ -117,13 +125,23 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
     try {
       const res = await api.muniMailWilayaSeen(token, id)
       setWilayaRows(res.wilaya_admins || [])
-    } catch (e: any) {
-      setWilayaError(e?.message || 'Erreur')
+    } catch (e: unknown) {
+      const raw =
+        e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
+      const msg = formatApiErrorMessage(raw, t)
+      setWilayaError(msg)
+      snack.show(msg, 'error')
     }
   }
 
   useEffect(() => {
-    load().catch((e: any) => setError(e?.message || 'Erreur'))
+    load().catch((e: unknown) => {
+      const raw =
+        e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
+      const msg = formatApiErrorMessage(raw, t)
+      setError(msg)
+      snack.show(msg, 'error')
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, mode, token])
 
@@ -152,7 +170,7 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
               className="btn"
               onClick={() => {
                 setSeenOpen(true)
-                loadSeen().catch(() => {})
+                void loadSeen()
               }}
             >
               {t('mailSeenBy')}
@@ -163,15 +181,13 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
               className="btn"
               onClick={() => {
                 setWilayaOpen(true)
-                loadWilaya().catch(() => {})
+                void loadWilaya()
               }}
             >
               {t('mailWilayaSeen')}
             </button>
           ) : null}
-          <button className="btn" onClick={() => nav('/mail')}>
-            {t('back')}
-          </button>
+          <BackButton fallbackTo="/mail" />
         </div>
       </div>
 

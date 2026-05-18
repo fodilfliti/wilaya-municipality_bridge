@@ -1,1 +1,52 @@
 /* App-specific styles intentionally minimal; base UI is in index.css */
+
+.snackbar {
+  position: fixed;
+  bottom: 1.25rem;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  max-width: min(32rem, calc(100vw - 1.5rem));
+  padding: 0.75rem 1rem;
+  border-radius: 0.625rem;
+  box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.22);
+  z-index: 10000;
+  font-weight: 650;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.snackbar--success {
+  background: #059669;
+  color: #fff;
+}
+
+.snackbar--error {
+  background: #b91c1c;
+  color: #fff;
+}
+
+.snackbar--info {
+  background: var(--navy, #1e3a5f);
+  color: #fff;
+}
+
+.formFeedback {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.formFeedback--error {
+  background: rgba(185, 28, 28, 0.1);
+  color: #991b1b;
+  border: 1px solid rgba(185, 28, 28, 0.35);
+}
+
+.formFeedback--success {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+  border: 1px solid rgba(5, 150, 105, 0.35);
+}

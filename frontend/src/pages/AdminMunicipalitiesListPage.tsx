@@ -4,10 +4,14 @@ import { useTranslation } from 'react-i18next'
 
 import * as api from '../api'
 import { Modal } from '../components/Modal'
+import { useSnackbar } from '../snackbar/SnackbarContext'
+import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
 
 export function AdminMunicipalitiesListPage({ token }: { token: string }) {
   const { t } = useTranslation()
+  const snack = useSnackbar()
   const [error, setError] = useState<string | null>(null)
+  const [modalSubmitting, setModalSubmitting] = useState(false)
   const [page, setPage] = useState(1)
   const pageSize = 10
 
@@ -30,9 +34,19 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
     setTotal(res.total)
   }, [page, pageSize, token])
 
+  const reportErr = useCallback(
+    (e: unknown) => {
+      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
+      const msg = formatApiErrorMessage(raw, t)
+      setError(msg)
+      snack.show(msg, 'error')
+    },
+    [t, snack],
+  )
+
   useEffect(() => {
-    load().catch((e: any) => setError(e.message))
-  }, [load])
+    load().catch(reportErr)
+  }, [load, reportErr])
 
   return (
     <div className="card">
@@ -42,7 +56,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
           <button className="btn btnPrimary" onClick={() => setCreateOpen(true)}>
             + {t('createMunicipality')}
           </button>
-          <button className="btn" onClick={() => load().catch((e) => setError(e.message))}>
+          <button className="btn" onClick={() => load().catch(reportErr)}>
             {t('refresh')}
           </button>
         </div>
@@ -99,6 +113,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
             setNameAr('')
             setNameFr('')
             setCode('')
+            setModalSubmitting(false)
           }}
         >
           <div className="grid">
@@ -117,22 +132,27 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button
                 className="btn btnPrimary"
+                disabled={modalSubmitting}
                 onClick={async () => {
                   try {
                     if (!nameAr.trim() || !nameFr.trim() || !code.trim()) throw new Error(t('allFieldsRequired'))
                     setError(null)
+                    setModalSubmitting(true)
                     await api.adminCreateMunicipality(token, { name_ar: nameAr.trim(), name_fr: nameFr.trim(), code: code.trim() })
                     setCreateOpen(false)
                     setNameAr('')
                     setNameFr('')
                     setCode('')
                     await load()
-                  } catch (e: any) {
-                    setError(e.message)
+                    snack.show(t('snackbarCreated'), 'success')
+                  } catch (e: unknown) {
+                    reportErr(e)
+                  } finally {
+                    setModalSubmitting(false)
                   }
                 }}
               >
-                {t('save')}
+                {modalSubmitting ? t('loading') : t('save')}
               </button>
             </div>
           </div>
@@ -147,6 +167,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
             setNameAr('')
             setNameFr('')
             setCode('')
+            setModalSubmitting(false)
           }}
         >
           <div className="grid">
@@ -165,9 +186,11 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button
                 className="btn btnPrimary"
+                disabled={modalSubmitting}
                 onClick={async () => {
                   try {
                     setError(null)
+                    setModalSubmitting(true)
                     await api.adminUpdateMunicipality(token, editMuni.id, {
                       name_ar: nameAr.trim() || editMuni.name_ar,
                       name_fr: nameFr.trim() || editMuni.name_fr,
@@ -178,12 +201,15 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
                     setNameFr('')
                     setCode('')
                     await load()
-                  } catch (e: any) {
-                    setError(e.message)
+                    snack.show(t('snackbarSaved'), 'success')
+                  } catch (e: unknown) {
+                    reportErr(e)
+                  } finally {
+                    setModalSubmitting(false)
                   }
                 }}
               >
-                {t('save')}
+                {modalSubmitting ? t('loading') : t('save')}
               </button>
             </div>
           </div>
@@ -191,7 +217,10 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
       ) : null}
 
       {deleteMuni ? (
-        <Modal title={t('deleteMunicipalityTitle', { name: deleteMuni.name_ar })} onClose={() => setDeleteMuni(null)}>
+        <Modal title={t('deleteMunicipalityTitle', { name: deleteMuni.name_ar })} onClose={() => {
+          setDeleteMuni(null)
+          setModalSubmitting(false)
+        }}>
           <div className="grid">
             <div className="muted">{t('deleteMunicipalityConfirm')}</div>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
@@ -200,18 +229,23 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
               </button>
               <button
                 className="btn btnWarning"
+                disabled={modalSubmitting}
                 onClick={async () => {
                   try {
                     setError(null)
+                    setModalSubmitting(true)
                     await api.adminDeleteMunicipality(token, deleteMuni.id)
                     setDeleteMuni(null)
                     await load()
-                  } catch (e: any) {
-                    setError(e.message)
+                    snack.show(t('snackbarDeleted'), 'success')
+                  } catch (e: unknown) {
+                    reportErr(e)
+                  } finally {
+                    setModalSubmitting(false)
                   }
                 }}
               >
-                {t('delete')}
+                {modalSubmitting ? t('loading') : t('delete')}
               </button>
             </div>
           </div>

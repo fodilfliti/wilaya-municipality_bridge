@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { BackButton } from '../components/BackButton'
+import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
+import { useSnackbar } from "../snackbar/SnackbarContext";
+import { formatApiErrorMessage } from "../snackbar/formatApiErrorMessage";
 
 export function MuniAppDetailPage({ token }: { token: string }) {
   const { t } = useTranslation();
+  const snack = useSnackbar();
   const { appId } = useParams();
   const numericAppId = useMemo(() => Number(appId), [appId]);
   const apiBase = import.meta.env.VITE_API_URL || "http://localhost:4000";
@@ -33,8 +37,14 @@ export function MuniAppDetailPage({ token }: { token: string }) {
       setVersions(res.versions || []);
       setStatus(res.status || null);
       setLast(res.last || null);
-    } catch (e: any) {
-      setError(e.message || "Erreur");
+    } catch (e: unknown) {
+      const raw =
+        e instanceof api.ApiError
+          ? e.message
+          : String((e as Error)?.message || "Erreur");
+      const msg = formatApiErrorMessage(raw, t);
+      setError(msg);
+      snack.show(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -52,11 +62,19 @@ export function MuniAppDetailPage({ token }: { token: string }) {
         <div className="row" style={{ gap: 12, alignItems: "center" }}>
           {app?.logo_url ? (
             <img
-              src={String(app.logo_url).startsWith("http") ? app.logo_url : `${apiBase}${app.logo_url}`}
+              src={
+                String(app.logo_url).startsWith("http")
+                  ? app.logo_url
+                  : `${apiBase}${app.logo_url}`
+              }
               alt=""
               width={44}
               height={44}
-              style={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--logoBg)" }}
+              style={{
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+                background: "var(--logoBg)",
+              }}
             />
           ) : (
             <div
@@ -71,17 +89,17 @@ export function MuniAppDetailPage({ token }: { token: string }) {
             />
           )}
           <div>
-            <div className="title">{app?.app_name ? app.app_name : t("apps")}</div>
+            <div className="title">
+              {app?.app_name ? app.app_name : t("apps")}
+            </div>
             <div className="muted">{app?.description || ""}</div>
           </div>
         </div>
         <div className="row">
-          <Link className="btn" to="/">
-            {t("back")}
-          </Link>
           <button className="btn btnPrimary" onClick={refresh}>
             {t("refresh")}
           </button>
+          <BackButton fallbackTo="/apps" />
         </div>
       </div>
 

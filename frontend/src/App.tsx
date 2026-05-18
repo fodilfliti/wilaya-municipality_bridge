@@ -11,6 +11,7 @@ import { AdminMunicipalityDetailPage } from "./pages/AdminMunicipalityDetailPage
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AdminVersionDetailPage } from "./pages/AdminVersionDetailPage";
 import { ErrorPopup } from "./components/ErrorPopup";
+import { SnackbarProvider } from "./snackbar/SnackbarContext";
 import { MuniAppDetailPage } from "./pages/MuniAppDetailPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { MuniAppsPage } from "./pages/MuniAppsPage";
@@ -18,6 +19,25 @@ import { LoginModal } from "./components/LoginModal";
 import { ChangeCodeModal } from "./components/ChangeCodeModal";
 import { MailInboxPage } from "./pages/MailInboxPage";
 import { MailThreadPage } from "./pages/MailThreadPage";
+import { AdminHubPage } from "./pages/AdminHubPage";
+import { MuniHubPage } from "./pages/MuniHubPage";
+import { AdminOperationsListPage } from "./pages/AdminOperationsListPage";
+import { AdminOperationCreatePage } from "./pages/AdminOperationCreatePage";
+import { AdminOperationDetailPage } from "./pages/AdminOperationDetailPage";
+import { AdminOperationResultsPage } from "./pages/AdminOperationResultsPage";
+import { MuniOperationsListPage } from "./pages/MuniOperationsListPage";
+import { MuniOperationSheetPage } from "./pages/MuniOperationSheetPage";
+import { MuniOperationViewPage } from "./pages/MuniOperationViewPage";
+import { AdminCommuneItStaffPage } from "./pages/AdminCommuneItStaffPage";
+import { MuniCommuneItStaffPage } from "./pages/MuniCommuneItStaffPage";
+import { AdminBackupServersPage } from "./pages/AdminBackupServersPage";
+import { MuniBackupServersPage } from "./pages/MuniBackupServersPage";
+import { AdminMcltWorkstationsPage } from "./pages/AdminMcltWorkstationsPage";
+import { MuniMcltWorkstationsPage } from "./pages/MuniMcltWorkstationsPage";
+import { AdminAnnexRncAuthorizationsPage } from "./pages/AdminAnnexRncAuthorizationsPage";
+import { MuniAnnexRncAuthorizationsPage } from "./pages/MuniAnnexRncAuthorizationsPage";
+import { MuniAnnexesPage } from "./pages/MuniAnnexesPage";
+import { TopbarProfileMenu } from "./components/TopbarProfileMenu";
 
 function App() {
   const { t, i18n } = useTranslation();
@@ -95,24 +115,26 @@ function App() {
 
   const refreshMailUnread = useCallback(async () => {
     if (!token || !me) return;
-    const res = isAdmin ? await api.adminMailUnreadCount(token) : await api.muniMailUnreadCount(token);
+    const res = isAdmin
+      ? await api.adminMailUnreadCount(token)
+      : await api.muniMailUnreadCount(token);
     setMailUnread(Number(res.unread || 0));
   }, [isAdmin, me, token]);
 
   useEffect(() => {
     if (!token || !me) return;
     const handleAuthError = (e: unknown) => {
-      const err = e as any
-      if (err && typeof err === 'object' && err.status === 401) {
+      const err = e as any;
+      if (err && typeof err === "object" && err.status === 401) {
         // Token expired/invalid -> force login
-        setError(null)
-        setLoginNotice(t('sessionExpired'))
-        setLoginOpen(true)
-        logout()
-        return
+        setError(null);
+        setLoginNotice(t("sessionExpired"));
+        setLoginOpen(true);
+        logout();
+        return;
       }
-      setError(err?.message || 'Erreur')
-    }
+      setError(err?.message || "Erreur");
+    };
     if (isAdmin) refreshAdmin().catch(handleAuthError);
     else refreshMuniApps().catch(handleAuthError);
     refreshMailUnread().catch(() => {});
@@ -120,224 +142,293 @@ function App() {
 
   useEffect(() => {
     if (!token || !me) return;
-    const id = window.setInterval(() => refreshMailUnread().catch(() => {}), 20000);
+    const id = window.setInterval(
+      () => refreshMailUnread().catch(() => {}),
+      20000,
+    );
     return () => window.clearInterval(id);
   }, [me, refreshMailUnread, token]);
 
   return (
-    <div className="container">
-      <div className="topbar">
-        <div className="brand">
-          <Link
-            to="/"
-            className="brandTitle"
-            style={{ textDecoration: "none" }}
-          >
-            {t("appTitle")}
-          </Link>
-          {me ? (
-            <div className="chip">
-              {isAdmin ? t("roleAdmin") : t("roleMuni")}
-            </div>
-          ) : (
-            <div className="chip">{t("login")}</div>
-          )}
-        </div>
-
-        <div className="actions">
-          <button
-            className="btn"
-            onClick={() => {
-              const next = i18n.language === "fr" ? "ar" : "fr"
-              localStorage.setItem("lang", next)
-              i18n.changeLanguage(next)
-            }}
-          >
-            {i18n.language === "fr" ? t("langArabic") : t("langFrench")}
-          </button>
-          {!me ? (
-            <button
-              className="btn btnPrimary"
-              onClick={() => setLoginOpen(true)}
+    <SnackbarProvider>
+      <div className="container">
+        <div className={`topbar ${me ? "topbar--3" : "topbar--2"}`}>
+          <div className="topbarBrand">
+            <Link
+              to="/"
+              className="brandTitle"
+              style={{ textDecoration: "none" }}
             >
-              {t("login")}
+              {t("appTitle")}
+            </Link>
+            {me ? (
+              <div className="chip chipSm">
+                {isAdmin ? t("roleAdmin") : t("roleMuni")}
+              </div>
+            ) : null}
+          </div>
+
+          {me ? (
+            <nav className="topbarNav" aria-label={t("hubTitle")}>
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  `btn btnSmall${isActive ? " btnPrimary" : ""}`
+                }
+              >
+                <span className="topbarNavHome" aria-hidden>
+                  {"\u{1F3E0}"}
+                </span>
+                {t("hubTitle")}
+              </NavLink>
+              <NavLink
+                to="/mail"
+                className={({ isActive }) =>
+                  `btn btnSmall${isActive ? " btnPrimary" : ""}`
+                }
+              >
+                <span className="btnLabel">
+                  {t("navMail")}
+                  {mailUnread > 0 ? (
+                    <span className="badge">
+                      {mailUnread > 99 ? "99+" : mailUnread}
+                    </span>
+                  ) : null}
+                </span>
+              </NavLink>
+            </nav>
+          ) : null}
+
+          <div className="actions">
+            <button
+              type="button"
+              className="btn btnSmall btnLangToggle btnPrimary"
+              aria-label={t("langToggleHint")}
+              title={t("langToggleHint")}
+              onClick={() => {
+                const next = i18n.language === "fr" ? "ar" : "fr";
+                localStorage.setItem("lang", next);
+                i18n.changeLanguage(next);
+              }}
+            >
+              {lang.toUpperCase()}
             </button>
-          ) : (
-            <>
-              {!isAdmin ? (
-                <button className="btn" onClick={() => setChangeCodeOpen(true)}>
-                  {t("changeCode")}
-                </button>
-              ) : null}
+            {!me ? (
               <button
-                className="btn"
-                onClick={() => {
+                className="btn btnPrimary"
+                onClick={() => setLoginOpen(true)}
+              >
+                {t("login")}
+              </button>
+            ) : (
+              <TopbarProfileMenu
+                isAdmin={isAdmin}
+                displayName={
+                  (me.name && String(me.name).trim()) ||
+                  me.username ||
+                  (isAdmin ? t("roleAdmin") : t("roleMuni"))
+                }
+                onChangeCode={() => setChangeCodeOpen(true)}
+                onLogout={() => {
                   logout();
                   navigate("/");
                 }}
-              >
-                {t("logout")}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {me && isAdmin && (
-        <div className="row" style={{ marginBottom: 12 }}>
-          <NavLink to="/" end className="btn">
-            {t("adminDashboard")}
-          </NavLink>
-          <NavLink to="/apps" className="btn">
-            {t("navApps")}
-          </NavLink>
-          <NavLink to="/municipalities" className="btn">
-            {t("navMunicipalities")}
-          </NavLink>
-          <NavLink to="/users" className="btn">
-            {t("navUsers")}
-          </NavLink>
-          <NavLink to="/mail" className="btn">
-            <span className="btnLabel">
-              {t("navMail")}
-              {mailUnread > 0 ? <span className="badge">{mailUnread > 99 ? '99+' : mailUnread}</span> : null}
-            </span>
-          </NavLink>
-        </div>
-      )}
-
-      {me && !isAdmin && (
-        <div className="row" style={{ marginBottom: 12 }}>
-          <NavLink to="/" end className="btn">
-            {t("apps")}
-          </NavLink>
-          <NavLink to="/mail" className="btn">
-            <span className="btnLabel">
-              {t("navMail")}
-              {mailUnread > 0 ? <span className="badge">{mailUnread > 99 ? '99+' : mailUnread}</span> : null}
-            </span>
-          </NavLink>
-        </div>
-      )}
-
-      {error ? (
-        <ErrorPopup message={error} onClose={() => setError(null)} />
-      ) : null}
-
-      {!me ? (
-        <div className="card">
-          <div className="title">{t("login")}</div>
-          <div className="muted">
-            {t("loginHint")}
+              />
+            )}
           </div>
         </div>
-      ) : (
-        <Routes>
-          {isAdmin ? (
-            <>
-              <Route
-                path="/"
-                element={
-                  <AdminDashboardPage
-                    progress={progress}
-                    apps={apps}
-                    onRefresh={() =>
-                      refreshAdmin().catch((e) => setError(e.message))
-                    }
-                  />
-                }
-              />
-              <Route
-                path="/apps"
-                element={<AdminAppsListPage token={token!} />}
-              />
-              <Route
-                path="/apps/:appId"
-                element={<AdminAppDetailPage token={token!} />}
-              />
-              <Route
-                path="/versions/:versionId"
-                element={<AdminVersionDetailPage token={token!} />}
-              />
-              <Route
-                path="/municipalities"
-                element={<AdminMunicipalitiesListPage token={token!} />}
-              />
-              <Route
-                path="/municipalities/:municipalityId"
-                element={<AdminMunicipalityDetailPage token={token!} />}
-              />
-              <Route
-                path="/users"
-                element={<AdminUsersPage token={token!} me={me} />}
-              />
-              <Route path="/mail" element={<MailInboxPage token={token!} mode="admin" />} />
-              <Route path="/mail/:threadId" element={<MailThreadPage token={token!} mode="admin" />} />
-            </>
-          ) : (
-            <>
-              <Route
-                path="/"
-                element={
-                  <MuniAppsPage
-                    apps={apps}
-                    token={token!}
-                    onGoToApp={(appId) => navigate(`/apps/${appId}`)}
-                    onRefresh={() =>
-                      refreshMuniApps().catch((e) => setError(e.message))
-                    }
-                  />
-                }
-              />
-              <Route
-                path="/apps/:appId"
-                element={<MuniAppDetailPage token={token!} />}
-              />
-              <Route path="/mail" element={<MailInboxPage token={token!} mode="muni" />} />
-              <Route path="/mail/:threadId" element={<MailThreadPage token={token!} mode="muni" />} />
-              <Route
-                path="*"
-                element={
-                  <MuniAppsPage
-                    apps={apps}
-                    token={token!}
-                    onGoToApp={(appId) => navigate(`/apps/${appId}`)}
-                    onRefresh={() =>
-                      refreshMuniApps().catch((e) => setError(e.message))
-                    }
-                  />
-                }
-              />
-            </>
-          )}
-        </Routes>
-      )}
 
-      <LoginModal
-        open={loginOpen}
-        onClose={() => {
-          setLoginOpen(false)
-          setLoginNotice(null)
-        }}
-        notice={loginNotice}
-        onSuccess={(res) => {
-          setToken(res.token);
-          setMe(res.user);
-          localStorage.setItem("token", res.token);
-          localStorage.setItem("me", JSON.stringify(res.user));
-          setLoginOpen(false);
-          setLoginNotice(null)
-        }}
-      />
+        {error ? (
+          <ErrorPopup message={error} onClose={() => setError(null)} />
+        ) : null}
 
-      {me && !isAdmin && token ? (
-        <ChangeCodeModal
-          token={token}
-          open={changeCodeOpen}
-          onClose={() => setChangeCodeOpen(false)}
+        {!me ? (
+          <div className="card">
+            <div className="title">{t("login")}</div>
+            <div className="muted">{t("loginHint")}</div>
+          </div>
+        ) : (
+          <Routes>
+            {isAdmin ? (
+              <>
+                <Route
+                  path="/"
+                  element={<AdminHubPage token={token!} me={me!} />}
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <AdminDashboardPage
+                      progress={progress}
+                      apps={apps}
+                      onRefresh={() =>
+                        refreshAdmin().catch((e) => setError(e.message))
+                      }
+                    />
+                  }
+                />
+                <Route
+                  path="/apps"
+                  element={<AdminAppsListPage token={token!} />}
+                />
+                <Route
+                  path="/apps/:appId"
+                  element={<AdminAppDetailPage token={token!} />}
+                />
+                <Route
+                  path="/versions/:versionId"
+                  element={<AdminVersionDetailPage token={token!} />}
+                />
+                <Route
+                  path="/municipalities"
+                  element={<AdminMunicipalitiesListPage token={token!} />}
+                />
+                <Route
+                  path="/municipalities/:municipalityId"
+                  element={<AdminMunicipalityDetailPage token={token!} />}
+                />
+                <Route
+                  path="/users"
+                  element={<AdminUsersPage token={token!} />}
+                />
+                <Route
+                  path="/operations"
+                  element={<AdminOperationsListPage token={token!} />}
+                />
+                <Route
+                  path="/operations/new"
+                  element={<AdminOperationCreatePage token={token!} />}
+                />
+                <Route
+                  path="/operations/:operationId"
+                  element={<AdminOperationDetailPage token={token!} />}
+                />
+                <Route
+                  path="/operations/:operationId/results"
+                  element={<AdminOperationResultsPage token={token!} />}
+                />
+                <Route
+                  path="/commune-it-staff"
+                  element={<AdminCommuneItStaffPage token={token!} />}
+                />
+                <Route
+                  path="/etat-principale/backup-servers"
+                  element={<AdminBackupServersPage token={token!} />}
+                />
+                <Route
+                  path="/etat-principale/mclt-workstations"
+                  element={<AdminMcltWorkstationsPage token={token!} />}
+                />
+                <Route
+                  path="/etat-principale/annex-rnc-authorizations"
+                  element={<AdminAnnexRncAuthorizationsPage token={token!} />}
+                />
+                <Route
+                  path="/mail"
+                  element={<MailInboxPage token={token!} mode="admin" />}
+                />
+                <Route
+                  path="/mail/:threadId"
+                  element={<MailThreadPage token={token!} mode="admin" />}
+                />
+                <Route
+                  path="*"
+                  element={<AdminHubPage token={token!} me={me!} />}
+                />
+              </>
+            ) : (
+              <>
+                <Route path="/" element={<MuniHubPage />} />
+                <Route
+                  path="/apps"
+                  element={
+                    <MuniAppsPage
+                      apps={apps}
+                      token={token!}
+                      onGoToApp={(appId) => navigate(`/apps/${appId}`)}
+                      onRefresh={() =>
+                        refreshMuniApps().catch((e) => setError(e.message))
+                      }
+                    />
+                  }
+                />
+                <Route
+                  path="/apps/:appId"
+                  element={<MuniAppDetailPage token={token!} />}
+                />
+                <Route
+                  path="/operations"
+                  element={<MuniOperationsListPage token={token!} />}
+                />
+                <Route
+                  path="/operations/:operationId/view"
+                  element={<MuniOperationViewPage token={token!} />}
+                />
+                <Route
+                  path="/operations/:operationId"
+                  element={<MuniOperationSheetPage token={token!} />}
+                />
+                <Route
+                  path="/commune-it-staff"
+                  element={<MuniCommuneItStaffPage token={token!} />}
+                />
+                <Route
+                  path="/etat-principale/backup-servers"
+                  element={<MuniBackupServersPage token={token!} />}
+                />
+                <Route
+                  path="/etat-principale/mclt-workstations"
+                  element={<MuniMcltWorkstationsPage token={token!} />}
+                />
+                <Route
+                  path="/etat-principale/annex-rnc-authorizations"
+                  element={<MuniAnnexRncAuthorizationsPage token={token!} />}
+                />
+                <Route
+                  path="/annexes"
+                  element={<MuniAnnexesPage token={token!} />}
+                />
+                <Route
+                  path="/mail"
+                  element={<MailInboxPage token={token!} mode="muni" />}
+                />
+                <Route
+                  path="/mail/:threadId"
+                  element={<MailThreadPage token={token!} mode="muni" />}
+                />
+                <Route path="*" element={<MuniHubPage />} />
+              </>
+            )}
+          </Routes>
+        )}
+
+        <LoginModal
+          open={loginOpen}
+          onClose={() => {
+            setLoginOpen(false);
+            setLoginNotice(null);
+          }}
+          notice={loginNotice}
+          onSuccess={(res) => {
+            setToken(res.token);
+            setMe(res.user);
+            localStorage.setItem("token", res.token);
+            localStorage.setItem("me", JSON.stringify(res.user));
+            setLoginOpen(false);
+            setLoginNotice(null);
+          }}
         />
-      ) : null}
-    </div>
+
+        {me && !isAdmin && token ? (
+          <ChangeCodeModal
+            token={token}
+            open={changeCodeOpen}
+            onClose={() => setChangeCodeOpen(false)}
+          />
+        ) : null}
+      </div>
+    </SnackbarProvider>
   );
 }
 

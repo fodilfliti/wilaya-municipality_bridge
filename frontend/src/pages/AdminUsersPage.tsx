@@ -1,172 +1,234 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { BackButton } from "../components/BackButton";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-
 import * as api from "../api";
 import { Modal } from "../components/Modal";
-import { ErrorPopup } from "../components/ErrorPopup";
-import { Snackbar } from "../components/Snackbar";
+import { useSnackbar } from "../snackbar/SnackbarContext";
+import { formatApiErrorMessage } from "../snackbar/formatApiErrorMessage";
 
-export function AdminUsersPage({
-  token,
-  me,
-}: {
-  token: string;
-  me?: api.LoginResponse["user"] | null;
-}) {
-  const { t } = useTranslation();
-  const [searchParams, setSearchParams] = useSearchParams();
+type MuniOpt = { id: number; code: string; name_ar: string; name_fr: string };
+
+export function AdminUsersPage({ token }: { token: string }) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language === "fr" ? "fr" : "ar";
+  const snack = useSnackbar();
+  const [searchParams] = useSearchParams();
   const initialMuniId = Number(searchParams.get("municipalityId") || "") || "";
 
-  const [error, setError] = useState<string | null>(null);
-  const [modalError, setModalError] = useState<string | null>(null);
-  const [municipalityId, setMunicipalityId] = useState<number | "">(
-    initialMuniId,
-  );
-  const [municipalities, setMunicipalities] = useState<any[]>([]);
-
-  const [municipality, setMunicipality] = useState<any | null>(null);
-  const [users, setUsers] = useState<any[]>([]);
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [rows, setRows] = useState<api.CommuneAgentRow[]>([]);
   const [total, setTotal] = useState(0);
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(total / pageSize)),
-    [total],
-  );
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [q, setQ] = useState("");
+  const [qInput, setQInput] = useState("");
+  const [filterMunicipalityId, setFilterMunicipalityId] = useState<number | "">(initialMuniId);
+  const [municipalities, setMunicipalities] = useState<MuniOpt[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [createWilayaOpen, setCreateWilayaOpen] = useState(false);
-  const [resetUser, setResetUser] = useState<any | null>(null);
-  const [blockUser, setBlockUser] = useState<any | null>(null);
-  const [unblockUser, setUnblockUser] = useState<any | null>(null);
-
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [formMunicipalityId, setFormMunicipalityId] = useState<number | "">("");
   const [optUsername, setOptUsername] = useState("");
   const [optName, setOptName] = useState("");
-  const [createdCreds, setCreatedCreds] = useState<{
-    code8: string;
-    pdf_url: string;
-  } | null>(null);
+  const [createdCreds, setCreatedCreds] = useState<{ code8: string; pdf_url: string } | null>(null);
 
-  const [snackbarMsg, setSnackbarMsg] = useState<string | null>(null);
+  const [resetUser, setResetUser] = useState<api.CommuneAgentRow | null>(null);
+  const [blockUser, setBlockUser] = useState<api.CommuneAgentRow | null>(null);
+  const [unblockUser, setUnblockUser] = useState<api.CommuneAgentRow | null>(null);
 
-  async function load() {
-    if (!municipalityId) return;
-    setError(null);
-    const res = await api.adminListMunicipalityUsers(
-      token,
-      municipalityId as number,
-      { page, pageSize },
-    );
-    setMunicipality(res.municipality);
-    setUsers(res.users);
-    setTotal(res.total);
-  }
+  const muniLabel = (m: MuniOpt | null | undefined) => {
+    if (!m) return "";
+    return lang === "fr" ? m.name_fr : m.name_ar;
+  };
 
-  async function loadMunicipalitiesForDropdown() {
-    const out: any[] = [];
-    let page = 1;
-    const pageSize = 50;
+  const loadMunicipalities = useCallback(async () => {
+    const acc: MuniOpt[] = [];
+    let p = 1;
     while (true) {
-      const res = await api.adminListMunicipalities(token, { page, pageSize });
-      out.push(...res.municipalities);
-      if (out.length >= res.total) break;
-      page += 1;
-      if (page > 10) break;
+      const res = await api.adminListMunicipalities(token, { page: p, pageSize: 50 });
+      for (const x of res.municipalities || []) {
+        acc.push({ id: x.id, code: x.code, name_ar: x.name_ar, name_fr: x.name_fr });
+      }
+      if (acc.length >= res.total) break;
+      p += 1;
+      if (p > 80) break;
     }
-    setMunicipalities(out);
+    setMunicipalities(acc);
+  }, [token]);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.adminCommuneAgentsList(token, {
+        page,
+        pageSize,
+        q: q.trim() || undefined,
+        municipalityId: filterMunicipalityId === "" ? undefined : Number(filterMunicipalityId),
+      });
+      setRows(res.rows);
+      setTotal(res.total);
+    } catch (e: unknown) {
+      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
+      snack.show(formatApiErrorMessage(raw, t), "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [filterMunicipalityId, page, pageSize, q, snack, t, token]);
+
+  useEffect(() => {
+    loadMunicipalities().catch(() => {});
+  }, [loadMunicipalities]);
+
+  useEffect(() => {
+    loadRows().catch(() => {});
+  }, [loadRows]);
+
+  function openCreate() {
+    setModalError(null);
+    setFormMunicipalityId(
+      filterMunicipalityId !== "" ? filterMunicipalityId : municipalities[0]?.id ?? "",
+    );
+    setOptUsername("");
+    setOptName("");
+    setCreateOpen(true);
   }
 
-  useEffect(() => {
-    loadMunicipalitiesForDropdown().catch((e) => setError(e.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!municipalityId) return;
-    setSearchParams({ municipalityId: String(municipalityId) });
-    setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [municipalityId]);
-
-  useEffect(() => {
-    load().catch((e) => setError(e.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [municipalityId, page]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="card">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <div className="title">{t("navUsers")}</div>
-          <div className="muted">{t("usersPageHint")}</div>
+      <div
+        className="row"
+        style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}
+      >
+        <div className="title" style={{ margin: 0 }}>
+          {t("communeAgentsAdminTitle")}
         </div>
         <div className="row">
-          <Link className="btn" to="/municipalities">
-            {t("navMunicipalities")}
-          </Link>
-          <button
-            className="btn"
-            onClick={() => {
-              if (!municipalityId) {
-                setSnackbarMsg(t("selectMunicipalityFirst"));
-                return;
-              }
-              load().catch((e) => setError(e.message));
-            }}
-          >
-            {t("refresh")}
-          </button>
-          <button
-            className="btn btnPrimary"
-            onClick={() => {
-              if (!municipalityId) {
-                setSnackbarMsg(t("selectMunicipalityFirst"));
-                return;
-              }
-              setCreateOpen(true);
-            }}
-          >
+          <button type="button" className="btn btnPrimary" onClick={openCreate}>
             {t("createUserCta")}
           </button>
-          {me?.can_create_wilaya_admins ? (
-            <button className="btn btnSoft" onClick={() => setCreateWilayaOpen(true)}>
-              {t("createWilayaAdmin")}
-            </button>
-          ) : null}
+          <button type="button" className="btn" onClick={() => loadRows().catch(() => {})}>
+            {t("refresh")}
+          </button>
+          <BackButton />
         </div>
       </div>
 
-      {error ? (
-        <ErrorPopup message={error} onClose={() => setError(null)} />
-      ) : null}
+      <div className="muted" style={{ marginTop: 8, marginBottom: 14 }}>
+        {t("communeAgentsAdminIntro")}
+      </div>
 
-      <div className="row" style={{ marginTop: 12 }}>
-        <label className="field" style={{ minWidth: 320 }}>
+      <div className="row" style={{ flexWrap: "wrap", gap: 10, marginBottom: 12, alignItems: "flex-end" }}>
+        <label className="field" style={{ minWidth: 160 }}>
           <div className="muted">{t("selectMunicipality")}</div>
           <select
             className="input"
-            value={municipalityId === "" ? "" : String(municipalityId)}
-            onChange={(e) =>
-              setMunicipalityId(e.target.value ? Number(e.target.value) : "")
-            }
+            value={filterMunicipalityId === "" ? "" : String(filterMunicipalityId)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setFilterMunicipalityId(v === "" ? "" : Number(v));
+              setPage(1);
+            }}
           >
-            <option value="">{t("chooseMunicipality")}</option>
+            <option value="">{t("itStaffAllCommunes")}</option>
             {municipalities.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name_ar} — {m.code}
+                {m.code} — {muniLabel(m)}
               </option>
             ))}
           </select>
         </label>
-        {municipality ? (
-          <div className="card cardSubtle" style={{ flex: 1 }}>
-            <div style={{ fontWeight: 900 }}>{municipality.name_ar}</div>
-            <div className="muted">
-              {municipality.name_fr} — {municipality.code}
+        <label className="field" style={{ flex: 1, minWidth: 200 }}>
+          <div className="muted">{t("search")}</div>
+          <input
+            className="input"
+            value={qInput}
+            onChange={(e) => setQInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                setQ(qInput);
+                setPage(1);
+              }
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            setQ(qInput);
+            setPage(1);
+          }}
+        >
+          {t("show")}
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="muted">{t("loading")}</div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="table" style={{ minWidth: 720, fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th>{t("municipalityCode")}</th>
+                <th>{t("itStaffCommune")}</th>
+                <th>{t("username")}</th>
+                <th>{t("name")}</th>
+                <th>{t("status")}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.municipality?.code ?? "—"}</td>
+                  <td>{muniLabel(u.municipality ?? undefined)}</td>
+                  <td>{u.username}</td>
+                  <td>{u.name || "—"}</td>
+                  <td>{u.is_blocked ? t("blocked") : t("active")}</td>
+                  <td>
+                    <div className="row">
+                      <button type="button" className="btn" onClick={() => setResetUser(u)}>
+                        {t("reset")}
+                      </button>
+                      {!u.is_blocked ? (
+                        <button type="button" className="btn btnWarning" onClick={() => setBlockUser(u)}>
+                          {t("block")}
+                        </button>
+                      ) : (
+                        <button type="button" className="btn btnSuccess" onClick={() => setUnblockUser(u)}>
+                          {t("unblock")}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length === 0 ? (
+            <div className="muted" style={{ marginTop: 8 }}>
+              {t("noUsers")}
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
+      )}
+
+      <div className="row" style={{ marginTop: 12, justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <div className="muted">
+          {t("paginationSummary", { page, totalPages, total })}
+        </div>
+        <div className="row">
+          <button type="button" className="btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            {t("prev")}
+          </button>
+          <button type="button" className="btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            {t("next")}
+          </button>
+        </div>
       </div>
 
       {createdCreds ? (
@@ -182,78 +244,12 @@ export function AdminUsersPage({
               {t("downloadPdf")}
             </a>
             <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button className="btn" onClick={() => setCreatedCreds(null)}>
+              <button type="button" className="btn" onClick={() => setCreatedCreds(null)}>
                 {t("close")}
               </button>
             </div>
           </div>
         </Modal>
-      ) : null}
-
-      <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-        {users.map((u) => (
-          <div key={u.id} className="card cardSubtle">
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontWeight: 900 }}>{u.name || u.username}</div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {u.username}
-                </div>
-                <div className="muted">{u.is_blocked ? t("blocked") : t("active")}</div>
-              </div>
-              <div className="row">
-                <button className="btn" onClick={() => setResetUser(u)}>
-                  {t("reset")}
-                </button>
-                {!u.is_blocked ? (
-                  <button
-                    className="btn btnWarning"
-                    onClick={() => setBlockUser(u)}
-                  >
-                    {t("block")}
-                  </button>
-                ) : (
-                  <button
-                    className="btn btnSuccess"
-                    onClick={() => setUnblockUser(u)}
-                  >
-                    {t("unblock")}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-        {municipalityId && users.length === 0 ? (
-          <div className="muted">{t("noUsers")}</div>
-        ) : null}
-      </div>
-
-      {municipalityId ? (
-        <div
-          className="row"
-          style={{ justifyContent: "space-between", marginTop: 12 }}
-        >
-          <div className="muted">
-            {t("paginationSummary", { page, totalPages, total })}
-          </div>
-          <div className="row">
-            <button
-              className="btn"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              {t("prev")}
-            </button>
-            <button
-              className="btn"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              {t("next")}
-            </button>
-          </div>
-        </div>
       ) : null}
 
       {createOpen ? (
@@ -270,68 +266,20 @@ export function AdminUsersPage({
           <div className="grid">
             <div className="muted">{t("createUserAutoHint")}</div>
             <label className="field">
-              <div className="muted">{t("username")}</div>
-              <input
+              <div className="muted">{t("chooseMunicipality")}</div>
+              <select
                 className="input"
-                value={optUsername}
-                onChange={(e) => setOptUsername(e.target.value)}
-              />
-            </label>
-            <label className="field">
-              <div className="muted">{t("fullNameOptional")}</div>
-              <input className="input" value={optName} onChange={(e) => setOptName(e.target.value)} />
-            </label>
-            <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button
-                className="btn btnPrimary"
-                onClick={async () => {
-                  try {
-                    if (!municipalityId)
-                      throw new Error(t("municipalityIdRequired"));
-                    setModalError(null);
-                    const u = optUsername.trim();
-                    if (!u) {
-                      throw new Error(t("usernameRequired"));
-                    }
-                    if (u && !/^[A-Za-z0-9_]+$/.test(u)) {
-                      throw new Error(t("errorUsernameFormat"));
-                    }
-                    const res = await api.adminCreateMuniUser(
-                      token,
-                      municipalityId as number,
-                      { name: optName.trim() || undefined, username: u },
-                    );
-                    setCreatedCreds(res.credentials);
-                    setCreateOpen(false);
-                    setOptUsername("");
-                    setOptName("");
-                    setModalError(null);
-                    await load();
-                  } catch (e: any) {
-                    setModalError(e.message);
-                  }
-                }}
+                value={formMunicipalityId === "" ? "" : String(formMunicipalityId)}
+                onChange={(e) => setFormMunicipalityId(e.target.value === "" ? "" : Number(e.target.value))}
               >
-                {t("create")}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      ) : null}
-
-      {createWilayaOpen ? (
-        <Modal
-          title={t("createWilayaAdmin")}
-          onClose={() => {
-            setCreateWilayaOpen(false);
-            setModalError(null);
-            setOptUsername("");
-            setOptName("");
-          }}
-          error={modalError}
-        >
-          <div className="grid">
-            <div className="muted">{t("createUserAutoHint")}</div>
+                <option value="">{t("chooseMunicipality")}</option>
+                {municipalities.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.code} — {muniLabel(m)}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="field">
               <div className="muted">{t("username")}</div>
               <input className="input" value={optUsername} onChange={(e) => setOptUsername(e.target.value)} />
@@ -341,22 +289,37 @@ export function AdminUsersPage({
               <input className="input" value={optName} onChange={(e) => setOptName(e.target.value)} />
             </label>
             <div className="row" style={{ justifyContent: "flex-end" }}>
+              <button type="button" className="btn" onClick={() => setCreateOpen(false)}>
+                {t("cancel")}
+              </button>
               <button
+                type="button"
                 className="btn btnPrimary"
                 onClick={async () => {
                   try {
                     setModalError(null);
+                    const mid = Number(formMunicipalityId);
+                    if (!Number.isFinite(mid) || mid < 1) {
+                      setModalError(t("municipalityIdRequired"));
+                      return;
+                    }
                     const u = optUsername.trim();
                     if (!u) throw new Error(t("usernameRequired"));
                     if (!/^[A-Za-z0-9_]+$/.test(u)) throw new Error(t("errorUsernameFormat"));
-                    const res = await api.adminCreateWilayaAdmin(token, { username: u, name: optName.trim() || undefined });
+                    const res = await api.adminCreateMuniUser(token, mid, {
+                      username: u,
+                      name: optName.trim() || undefined,
+                    });
                     setCreatedCreds(res.credentials);
-                    setCreateWilayaOpen(false);
+                    setCreateOpen(false);
                     setOptUsername("");
                     setOptName("");
-                    setModalError(null);
-                  } catch (e: any) {
-                    setModalError(e.message);
+                    snack.show(t("snackbarSaved"), "success");
+                    await loadRows();
+                  } catch (e: unknown) {
+                    const raw =
+                      e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
+                    setModalError(formatApiErrorMessage(raw, t));
                   }
                 }}
               >
@@ -379,10 +342,11 @@ export function AdminUsersPage({
           <div className="grid">
             <div className="muted">{t("resetUserHint")}</div>
             <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button className="btn" onClick={() => setResetUser(null)}>
+              <button type="button" className="btn" onClick={() => setResetUser(null)}>
                 {t("cancel")}
               </button>
               <button
+                type="button"
                 className="btn btnPrimary"
                 onClick={async () => {
                   try {
@@ -390,10 +354,12 @@ export function AdminUsersPage({
                     const res = await api.adminResetUser(token, resetUser.id);
                     setCreatedCreds(res.credentials);
                     setResetUser(null);
-                    setModalError(null);
-                    await load();
-                  } catch (e: any) {
-                    setModalError(e.message);
+                    snack.show(t("snackbarSaved"), "success");
+                    await loadRows();
+                  } catch (e: unknown) {
+                    const raw =
+                      e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
+                    setModalError(formatApiErrorMessage(raw, t));
                   }
                 }}
               >
@@ -416,20 +382,23 @@ export function AdminUsersPage({
           <div className="grid">
             <div className="muted">{t("blockUserConfirm")}</div>
             <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button className="btn" onClick={() => setBlockUser(null)}>
+              <button type="button" className="btn" onClick={() => setBlockUser(null)}>
                 {t("cancel")}
               </button>
               <button
+                type="button"
                 className="btn btnWarning"
                 onClick={async () => {
                   try {
                     setModalError(null);
                     await api.adminBlockUser(token, blockUser.id);
                     setBlockUser(null);
-                    setModalError(null);
-                    await load();
-                  } catch (e: any) {
-                    setModalError(e.message);
+                    snack.show(t("snackbarSaved"), "success");
+                    await loadRows();
+                  } catch (e: unknown) {
+                    const raw =
+                      e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
+                    setModalError(formatApiErrorMessage(raw, t));
                   }
                 }}
               >
@@ -452,20 +421,23 @@ export function AdminUsersPage({
           <div className="grid">
             <div className="muted">{t("unblockUserConfirm")}</div>
             <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button className="btn" onClick={() => setUnblockUser(null)}>
+              <button type="button" className="btn" onClick={() => setUnblockUser(null)}>
                 {t("cancel")}
               </button>
               <button
+                type="button"
                 className="btn btnSuccess"
                 onClick={async () => {
                   try {
                     setModalError(null);
                     await api.adminUnblockUser(token, unblockUser.id);
                     setUnblockUser(null);
-                    setModalError(null);
-                    await load();
-                  } catch (e: any) {
-                    setModalError(e.message);
+                    snack.show(t("snackbarSaved"), "success");
+                    await loadRows();
+                  } catch (e: unknown) {
+                    const raw =
+                      e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
+                    setModalError(formatApiErrorMessage(raw, t));
                   }
                 }}
               >
@@ -475,8 +447,6 @@ export function AdminUsersPage({
           </div>
         </Modal>
       ) : null}
-
-      <Snackbar open={Boolean(snackbarMsg)} message={snackbarMsg || ""} onClose={() => setSnackbarMsg(null)} />
     </div>
   );
 }

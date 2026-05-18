@@ -29,7 +29,12 @@ export function MailInboxPage({ token, mode }: { token: string; mode: 'admin' | 
 
   async function loadThreads(p = page) {
     setError(null)
-    const opts = { page: p, pageSize: 20, q: q.trim() || undefined, unread: unreadOnly ? 1 : 0 }
+    const opts = {
+      page: p,
+      pageSize: 20,
+      q: q.trim() || undefined,
+      unread: (unreadOnly ? 1 : 0) as 0 | 1,
+    }
     const res = mode === 'admin' ? await api.adminMailThreads(token, opts) : await api.muniMailThreads(token, opts)
     setThreads(res.threads)
     setThreadsTotal(res.total)

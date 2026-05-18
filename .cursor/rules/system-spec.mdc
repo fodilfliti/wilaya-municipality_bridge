@@ -1,0 +1,59 @@
+---
+description: Follow SYSTEM_SPEC.md and keep spec/ in sync whenever code or structure changes
+alwaysApply: true
+---
+
+# Wilaya Bridge — spec-first development
+
+This project is **spec-driven**. Canonical docs live under `spec/`; `SYSTEM_SPEC.md` is the **index only** (do not duplicate full module specs there).
+
+## Before coding
+
+1. Read `SYSTEM_SPEC.md` to find the right doc(s).
+2. Read `spec/CORE.md` for cross-cutting rules (stack, roles, audit, API, UI, Excel, hub navigation).
+3. Read the relevant `spec/modules/<MODULE>.md` for the feature you touch.
+
+If behavior is unclear or missing from spec, **update the spec first** (or in the same change), then implement.
+
+## Whenever you add or change a feature
+
+**Spec updates are mandatory**, not optional:
+
+| Change | What to update |
+|--------|----------------|
+| **New module / major feature** | New `spec/modules/<NAME>.md` from `spec/modules/_TEMPLATE.md`; link it under **Modules** in `SYSTEM_SPEC.md` |
+| **New API, table, workflow, screen** | Extend the module’s `spec/modules/*.md` (data model, endpoints, UI, audit events) |
+| **Rule shared by 2+ modules** | Add to `spec/CORE.md` only (not duplicated in every module) |
+| **Cross-cutting product change** (nav, export, global UX) | `spec/CORE.md` + short bullet under **Cross-cutting updates** in `SYSTEM_SPEC.md` |
+| **Small module-only tweak** | Module spec only; index only if discoverability changes |
+
+Do **not** merge a feature PR / task without matching spec changes unless the user explicitly waives spec for a hotfix—and even then, note the gap in `SYSTEM_SPEC.md` or the module file.
+
+## Module spec checklist (use `_TEMPLATE.md`)
+
+Each module file must cover: purpose, roles, data model, workflows, API (admin + muni), UI/UX, audit action types, NFRs, migration notes.
+
+## Implementation must match spec
+
+- **Roles**: `SUPER_ADMIN` (Wilaya) vs `MUNI_ADMIN` (commune); scope by `municipality_id`.
+- **Auth**: JWT + `checkBlocked`; blocked users rejected immediately.
+- **Audit**: critical actions → `AuditLogs` with stable `action_type` and JSON `details`.
+- **API lists**: pagination (`page`, `pageSize`, max 100), search param as declared in module spec, stable sort order.
+- **UI**: RTL-first; Arabic default, French optional — **no English** UI copy.
+- **Actions row**: primary actions first; **`BackButton` last** (`frontend/src/components/BackButton.tsx`).
+- **Async errors**: snackbar via `formatApiErrorMessage`; no silent `.catch` on user actions.
+- **Excel export (server)**: use `backend/src/services/excelThinBorders.js`; log export audit events where applicable.
+- **Organization**: communes and commune agents are **separate flows** (`spec/modules/ORGANIZATION.md`).
+
+## Code layout (keep aligned with spec)
+
+- Backend modules: `backend/src/modules/<area>/`, routes `backend/src/routes/`, models/migrations under `backend/src/db/`.
+- Frontend: pages under `frontend/src/pages/`, shared UI in `frontend/src/components/`.
+- When adding routes, hub tiles, or admin/muni entry points, document them in the module spec **UI/UX** section.
+
+## Agent workflow summary
+
+1. Identify module → read spec.
+2. If adding/changing behavior → **edit spec** (and `SYSTEM_SPEC.md` index when needed).
+3. Implement to match spec.
+4. If implementation forced a design change → **update spec in the same change** so spec and code never diverge.
