@@ -1,0 +1,27 @@
+/**
+ * System role template slugs (enum). Custom roles use slug prefix CUSTOM_ + id or user-defined slug.
+ * Frontend should mirror this list for default role picker.
+ */
+
+const WILAYA_ROLE_SLUGS = {
+  WILAYA_FULL_ADMIN: "WILAYA_FULL_ADMIN",
+  WILAYA_VIEW_ONLY: "WILAYA_VIEW_ONLY",
+  WILAYA_CHEF_SERVICE: "WILAYA_CHEF_SERVICE",
+  WILAYA_APPS_MANAGER: "WILAYA_APPS_MANAGER",
+  WILAYA_ETAT_MANAGER: "WILAYA_ETAT_MANAGER",
+  WILAYA_ORG_MANAGER: "WILAYA_ORG_MANAGER"
+};
+
+const MUNI_ROLE_SLUGS = {
+  MUNI_AGENT_STANDARD: "MUNI_AGENT_STANDARD",
+  MUNI_VIEW_ONLY: "MUNI_VIEW_ONLY",
+  MUNI_ETAT_AGENT: "MUNI_ETAT_AGENT"
+};
+
+const ALL_SYSTEM_ROLE_SLUGS = { ...WILAYA_ROLE_SLUGS, ...MUNI_ROLE_SLUGS };
+
+module.exports = {
+  WILAYA_ROLE_SLUGS,
+  MUNI_ROLE_SLUGS,
+  ALL_SYSTEM_ROLE_SLUGS
+};

@@ -13,7 +13,7 @@ export function MuniMailComposeModal({
 }: {
   token: string
   onClose: () => void
-  onCreated: (threadId: number) => void
+  onCreated: (result: { threadId?: number; sendRequestId?: number }) => void
 }) {
   const { t } = useTranslation()
   const [error, setError] = useState<string | null>(null)
@@ -27,6 +27,10 @@ export function MuniMailComposeModal({
   const [admins, setAdmins] = useState<{ id: number; name: string | null }[] | null>(null)
   const [selectedAdmins, setSelectedAdmins] = useState<number[]>([])
 
+  const [sendMode, setSendMode] = useState<'DIRECT' | 'VALIDATION'>('DIRECT')
+  const [validatorCandidates, setValidatorCandidates] = useState<{ id: number; name: string | null; username: string }[]>([])
+  const [selectedValidators, setSelectedValidators] = useState<number[]>([])
+
   useEffect(() => {
     ;(async () => {
       try {
@@ -34,6 +38,17 @@ export function MuniMailComposeModal({
         setAdmins((res.admins || []).map((a) => ({ id: a.id, name: a.name || null })))
       } catch (e: any) {
         setError(e?.message || 'Erreur')
+      }
+    })()
+  }, [token])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await api.mailValidatorCandidates(token, 'muni')
+        setValidatorCandidates(res.users || [])
+      } catch {
+        setValidatorCandidates([])
       }
     })()
   }, [token])
@@ -96,6 +111,41 @@ export function MuniMailComposeModal({
           <RichTextEditor html={bodyHtml} onChange={setBodyHtml} placeholder={t('mailBodyPh')} />
         </div>
 
+        <div className="card cardSubtle">
+          <div className="title" style={{ marginBottom: 8 }}>{t('mailTabValidations')}</div>
+          <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>{t('mailValidationHint')}</div>
+          <div className="row" style={{ gap: 10, marginBottom: 8 }}>
+            <label className="row" style={{ gap: 8 }}>
+              <input type="radio" checked={sendMode === 'DIRECT'} onChange={() => setSendMode('DIRECT')} />
+              <span>{t('mailSendModeDirect')}</span>
+            </label>
+            <label className="row" style={{ gap: 8 }}>
+              <input type="radio" checked={sendMode === 'VALIDATION'} onChange={() => setSendMode('VALIDATION')} />
+              <span>{t('mailSendModeValidation')}</span>
+            </label>
+          </div>
+          {sendMode === 'VALIDATION' ? (
+            <div className="mailPickList">
+              {validatorCandidates.map((u) => {
+                const checked = selectedValidators.includes(u.id)
+                const label = (u.name || '').trim() || u.username
+                return (
+                  <label key={u.id} className="mailPickItem">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setSelectedValidators((prev) => (checked ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
+                      }
+                    />
+                    <span style={{ fontWeight: 700 }}>{label}</span>
+                  </label>
+                )
+              })}
+            </div>
+          ) : null}
+        </div>
+
         <div className="field">
           <div className="muted">{t('mailAttachments')}</div>
           <input className="input" type="file" multiple onChange={(e) => setAttachments(Array.from(e.target.files || []))} />
@@ -116,11 +166,20 @@ export function MuniMailComposeModal({
               if (!s) return setError(t('mailSubjectRequired'))
               if (!b) return setError(t('mailBodyRequired'))
               if (target.type === 'WILAYA_ADMINS' && !target.user_ids.length) return setError(t('mailTargetRequired'))
+              if (sendMode === 'VALIDATION' && !selectedValidators.length) return setError(t('mailValidatorsRequired'))
 
               setBusy(true)
               try {
-                const res = await api.muniMailCreateThread(token, { subject: s, body_html: b, target, attachments })
-                onCreated(Number(res.thread?.id))
+                const res = await api.muniMailCreateThread(token, {
+                  subject: s,
+                  body_html: b,
+                  target,
+                  attachments,
+                  send_mode: sendMode,
+                  validator_user_ids: sendMode === 'VALIDATION' ? selectedValidators : undefined,
+                })
+                if (res.send_request_id) onCreated({ sendRequestId: res.send_request_id })
+                else onCreated({ threadId: Number(res.thread?.id) })
               } catch (e: any) {
                 setError(e?.message || 'Erreur')
               } finally {
@@ -128,11 +187,10 @@ export function MuniMailComposeModal({
               }
             }}
           >
-            {t('submit')}
+            {sendMode === 'VALIDATION' ? t('mailSendForValidation') : t('mailSendNow')}
           </button>
         </div>
       </div>
     </Modal>
   )
 }
-

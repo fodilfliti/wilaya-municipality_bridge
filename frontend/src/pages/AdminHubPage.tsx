@@ -1,111 +1,187 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
-import { Modal } from "../components/Modal";
 import { HubTileLink, type HubTile } from "../components/HubTileLink";
+import { usePerm } from "../permissions/PermissionsContext";
+
+function filterTiles(tiles: HubTile[], can: (key: string, min?: "view" | "manage") => boolean) {
+  return tiles.filter((tile) => {
+    if (!tile.permissionKey) return true;
+    return can(tile.permissionKey, tile.permissionMin || "view");
+  });
+}
 
 export function AdminHubPage({
-  token,
-  me,
+  token: _token,
+  me: _me,
 }: {
   token: string;
   me: api.LoginResponse["user"];
 }) {
+  void _token;
+  void _me;
   const { t } = useTranslation();
+  const { can } = usePerm();
 
-  const [createWilayaOpen, setCreateWilayaOpen] = useState(false);
-  const [wilayaModalError, setWilayaModalError] = useState<string | null>(null);
-  const [wilayaUsername, setWilayaUsername] = useState("");
-  const [wilayaName, setWilayaName] = useState("");
-  const [createdWilayaCreds, setCreatedWilayaCreds] = useState<{
-    code8: string;
-    pdf_url: string;
-  } | null>(null);
+  const appsTiles = useMemo(
+    () =>
+      filterTiles(
+        [
+          {
+            to: "/dashboard",
+            titleKey: "tileDashboard",
+            descKey: "tileDashboardDesc",
+            icon: "\u{1F4CA}",
+            permissionKey: "apps.view",
+          },
+          {
+            to: "/apps",
+            titleKey: "tileApps",
+            descKey: "tileAppsDesc",
+            icon: "\u{1F4E6}",
+            permissionKey: "apps.view",
+          },
+        ],
+        can,
+      ),
+    [can],
+  );
 
-  const appsTiles: HubTile[] = [
-    {
-      to: "/dashboard",
-      titleKey: "tileDashboard",
-      descKey: "tileDashboardDesc",
-      icon: "\u{1F4CA}",
-    },
-    {
-      to: "/apps",
-      titleKey: "tileApps",
-      descKey: "tileAppsDesc",
-      icon: "\u{1F4E6}",
-    },
-  ];
+  const etatTiles = useMemo(
+    () =>
+      filterTiles(
+        [
+          {
+            to: "/etat-principale/backup-servers",
+            titleKey: "tileBackupServersTitle",
+            descKey: "tileBackupServersDesc",
+            icon: "\u{1F5A5}",
+            permissionKey: "etat.backup_servers.view",
+          },
+          {
+            to: "/etat-principale/mclt-workstations",
+            titleKey: "tileMcltTitle",
+            descKey: "tileMcltDesc",
+            icon: "\u{1F4BB}",
+            permissionKey: "etat.mclt.view",
+          },
+          {
+            to: "/etat-principale/annex-rnc-authorizations",
+            titleKey: "tileAnnexRncTitle",
+            descKey: "tileAnnexRncDesc",
+            icon: "\u{1F310}",
+            permissionKey: "etat.annex_rnc.view",
+          },
+        ],
+        can,
+      ),
+    [can],
+  );
 
-  const etatTiles: HubTile[] = [
-    {
-      to: "/etat-principale/backup-servers",
-      titleKey: "tileBackupServersTitle",
-      descKey: "tileBackupServersDesc",
-      icon: "\u{1F5A5}",
-    },
-    {
-      to: "/etat-principale/mclt-workstations",
-      titleKey: "tileMcltTitle",
-      descKey: "tileMcltDesc",
-      icon: "\u{1F4BB}",
-    },
-    {
-      to: "/etat-principale/annex-rnc-authorizations",
-      titleKey: "tileAnnexRncTitle",
-      descKey: "tileAnnexRncDesc",
-      icon: "\u{1F310}",
-    },
-  ];
+  const wilayaOrgTiles = useMemo(
+    () =>
+      filterTiles(
+        [
+          {
+            to: "/wilaya-admins",
+            titleKey: "tileWilayaAdmins",
+            descKey: "tileWilayaAdminsDesc",
+            icon: "\u{1F3E2}",
+            permissionKey: "organization.wilaya_admins.view",
+          },
+          {
+            to: "/users",
+            titleKey: "tileUsers",
+            descKey: "tileUsersDesc",
+            icon: "\u{1F465}",
+            permissionKey: "organization.commune_agents.view",
+          },
+          {
+            to: "/access-roles",
+            titleKey: "tileAccessRoles",
+            descKey: "tileAccessRolesDesc",
+            icon: "\u{1F510}",
+            permissionKey: "organization.access_roles.manage",
+            permissionMin: "manage",
+          },
+        ],
+        can,
+      ),
+    [can],
+  );
 
-  const communeTiles: HubTile[] = [
-    {
-      to: "/operations",
-      titleKey: "tileOperations",
-      descKey: "tileOperationsDesc",
-      icon: "\u{1F4C8}",
-    },
-    {
-      to: "/municipalities",
-      titleKey: "tileMunicipalities",
-      descKey: "tileMunicipalitiesDesc",
-      icon: "\u{1F3DB}",
-    },
-    {
-      to: "/municipalities",
-      titleKey: "tileAnnexesManageTitle",
-      descKey: "tileAnnexesManageDesc",
-      icon: "\u{1F4DE}",
-    },
-    {
-      to: "/users",
-      titleKey: "tileUsers",
-      descKey: "tileUsersDesc",
-      icon: "\u{1F465}",
-    },
-    {
-      to: "/commune-it-staff",
-      titleKey: "tileItStaffTitle",
-      descKey: "tileItStaffDesc",
-      icon: "\u{1F4BB}",
-    },
-  ];
+  const communeTiles = useMemo(
+    () =>
+      filterTiles(
+        [
+          {
+            to: "/operations",
+            titleKey: "tileOperations",
+            descKey: "tileOperationsDesc",
+            icon: "\u{1F4C8}",
+            permissionKey: "operations.view",
+          },
+          {
+            to: "/municipalities",
+            titleKey: "tileMunicipalities",
+            descKey: "tileMunicipalitiesDesc",
+            icon: "\u{1F3DB}",
+            permissionKey: "organization.municipalities.view",
+          },
+          {
+            to: "/municipalities",
+            titleKey: "tileAnnexesManageTitle",
+            descKey: "tileAnnexesManageDesc",
+            icon: "\u{1F4DE}",
+            permissionKey: "annexes.view",
+          },
+          {
+            to: "/commune-it-staff",
+            titleKey: "tileItStaffTitle",
+            descKey: "tileItStaffDesc",
+            icon: "\u{1F4BB}",
+            permissionKey: "commune_it_staff.view",
+          },
+        ],
+        can,
+      ),
+    [can],
+  );
 
-  const quick: HubTile[] = [
-    {
-      to: "/municipalities",
-      titleKey: "quickAddCommune",
-      descKey: "quickAddCommuneDesc",
-      icon: "\u2795",
-    },
-    {
-      to: "/users",
-      titleKey: "quickAddAgent",
-      descKey: "quickAddAgentDesc",
-      icon: "\u{1F464}",
-    },
-  ];
+  const quick = useMemo(
+    () =>
+      filterTiles(
+        [
+          {
+            to: "/municipalities",
+            titleKey: "quickAddCommune",
+            descKey: "quickAddCommuneDesc",
+            icon: "\u2795",
+            permissionKey: "organization.municipalities.manage",
+            permissionMin: "manage",
+          },
+          {
+            to: "/wilaya-admins",
+            titleKey: "quickCreateWilayaAdmin",
+            descKey: "quickCreateWilayaAdminDesc",
+            icon: "\u{1F3E2}",
+            permissionKey: "organization.wilaya_admins.manage",
+            permissionMin: "manage",
+          },
+          {
+            to: "/users",
+            titleKey: "quickAddAgent",
+            descKey: "quickAddAgentDesc",
+            icon: "\u{1F464}",
+            permissionKey: "organization.commune_agents.manage",
+            permissionMin: "manage",
+          },
+        ],
+        can,
+      ),
+    [can],
+  );
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -115,99 +191,6 @@ export function AdminHubPage({
         </div>
         <div className="muted">{t("hubSubtitleAdmin")}</div>
       </div>
-
-      {createdWilayaCreds ? (
-        <Modal
-          title={t("userCreatedTitle")}
-          onClose={() => setCreatedWilayaCreds(null)}
-        >
-          <div className="grid">
-            <div className="muted">
-              {t("codeLabel", { code: createdWilayaCreds.code8 })}
-            </div>
-            <a
-              className="btn"
-              href={`${import.meta.env.VITE_API_URL || "http://localhost:4000"}${createdWilayaCreds.pdf_url}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t("downloadPdf")}
-            </a>
-            <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => setCreatedWilayaCreds(null)}
-              >
-                {t("close")}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      ) : null}
-
-      {createWilayaOpen ? (
-        <Modal
-          title={t("createWilayaAdmin")}
-          onClose={() => {
-            setCreateWilayaOpen(false);
-            setWilayaModalError(null);
-            setWilayaUsername("");
-            setWilayaName("");
-          }}
-          error={wilayaModalError}
-        >
-          <div className="grid">
-            <div className="muted">{t("createUserAutoHint")}</div>
-            <label className="field">
-              <div className="muted">{t("username")}</div>
-              <input
-                className="input"
-                value={wilayaUsername}
-                onChange={(e) => setWilayaUsername(e.target.value)}
-              />
-            </label>
-            <label className="field">
-              <div className="muted">{t("fullNameOptional")}</div>
-              <input
-                className="input"
-                value={wilayaName}
-                onChange={(e) => setWilayaName(e.target.value)}
-              />
-            </label>
-            <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                className="btn btnPrimary"
-                onClick={async () => {
-                  try {
-                    setWilayaModalError(null);
-                    const u = wilayaUsername.trim();
-                    if (!u) throw new Error(t("usernameRequired"));
-                    if (!/^[A-Za-z0-9_]+$/.test(u))
-                      throw new Error(t("errorUsernameFormat"));
-                    const res = await api.adminCreateWilayaAdmin(token, {
-                      username: u,
-                      name: wilayaName.trim() || undefined,
-                    });
-                    setCreatedWilayaCreds(res.credentials);
-                    setCreateWilayaOpen(false);
-                    setWilayaUsername("");
-                    setWilayaName("");
-                    setWilayaModalError(null);
-                  } catch (e: unknown) {
-                    setWilayaModalError(
-                      e instanceof Error ? e.message : String(e),
-                    );
-                  }
-                }}
-              >
-                {t("create")}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      ) : null}
 
       <div className="card cardSubtle">
         <div style={{ fontWeight: 800, marginBottom: 12 }}>
@@ -243,6 +226,15 @@ export function AdminHubPage({
       </div>
 
       <div className="card cardSubtle">
+        <div style={{ fontWeight: 800, marginBottom: 12 }}>{t("hubWilayaOrgSection")}</div>
+        <div className="hubGrid hubGridPair">
+          {wilayaOrgTiles.map((m) => (
+            <HubTileLink key={m.to + m.titleKey} tile={m} />
+          ))}
+        </div>
+      </div>
+
+      <div className="card cardSubtle">
         <div style={{ fontWeight: 800, marginBottom: 10 }}>
           {t("hubQuickSection")}
         </div>
@@ -262,25 +254,6 @@ export function AdminHubPage({
               </div>
             </Link>
           ))}
-          {me.can_create_wilaya_admins ? (
-            <button
-              type="button"
-              className="hubTile hubTileCompact"
-              onClick={() => setCreateWilayaOpen(true)}
-            >
-              <div className="hubTileIcon hubTileIconSm" aria-hidden>
-                {"\u{1F3E2}"}
-              </div>
-              <div className="hubTileBody">
-                <div className="hubTileTitle">
-                  {t("quickCreateWilayaAdmin")}
-                </div>
-                <div className="hubTileDesc muted">
-                  {t("quickCreateWilayaAdminDesc")}
-                </div>
-              </div>
-            </button>
-          ) : null}
         </div>
       </div>
     </div>

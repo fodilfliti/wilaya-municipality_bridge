@@ -17,8 +17,11 @@ export function AdminNav() {
       <NavLink to="/municipalities" className="btn">
         {t('navMunicipalities')}
       </NavLink>
+      <NavLink to="/wilaya-admins" className="btn">
+        {t('tileWilayaAdmins')}
+      </NavLink>
       <NavLink to="/users" className="btn">
-        {t('navUsers')}
+        {t('tileUsers')}
       </NavLink>
     </div>
   )

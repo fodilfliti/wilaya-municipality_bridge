@@ -9,6 +9,7 @@ import { AdminAppDetailPage } from "./pages/AdminAppDetailPage";
 import { AdminMunicipalitiesListPage } from "./pages/AdminMunicipalitiesListPage";
 import { AdminMunicipalityDetailPage } from "./pages/AdminMunicipalityDetailPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
+import { AdminWilayaAdminsPage } from "./pages/AdminWilayaAdminsPage";
 import { AdminVersionDetailPage } from "./pages/AdminVersionDetailPage";
 import { ErrorPopup } from "./components/ErrorPopup";
 import { SnackbarProvider } from "./snackbar/SnackbarContext";
@@ -19,6 +20,7 @@ import { LoginModal } from "./components/LoginModal";
 import { ChangeCodeModal } from "./components/ChangeCodeModal";
 import { MailInboxPage } from "./pages/MailInboxPage";
 import { MailThreadPage } from "./pages/MailThreadPage";
+import { MailValidationDetailPage } from "./pages/MailValidationDetailPage";
 import { AdminHubPage } from "./pages/AdminHubPage";
 import { MuniHubPage } from "./pages/MuniHubPage";
 import { AdminOperationsListPage } from "./pages/AdminOperationsListPage";
@@ -35,9 +37,12 @@ import { MuniBackupServersPage } from "./pages/MuniBackupServersPage";
 import { AdminMcltWorkstationsPage } from "./pages/AdminMcltWorkstationsPage";
 import { MuniMcltWorkstationsPage } from "./pages/MuniMcltWorkstationsPage";
 import { AdminAnnexRncAuthorizationsPage } from "./pages/AdminAnnexRncAuthorizationsPage";
+import { AdminAccessRolesPage } from "./pages/AdminAccessRolesPage";
 import { MuniAnnexRncAuthorizationsPage } from "./pages/MuniAnnexRncAuthorizationsPage";
 import { MuniAnnexesPage } from "./pages/MuniAnnexesPage";
 import { TopbarProfileMenu } from "./components/TopbarProfileMenu";
+import { PermissionsProvider } from "./permissions/PermissionsContext";
+import { RequirePermission } from "./permissions/RequirePermission";
 
 function App() {
   const { t, i18n } = useTranslation();
@@ -249,92 +254,191 @@ function App() {
             <div className="muted">{t("loginHint")}</div>
           </div>
         ) : (
-          <Routes>
+          <PermissionsProvider me={me}>
+            <Routes>
             {isAdmin ? (
               <>
                 <Route
                   path="/"
-                  element={<AdminHubPage token={token!} me={me!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminHubPage token={token!} me={me!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/dashboard"
                   element={
-                    <AdminDashboardPage
-                      progress={progress}
-                      apps={apps}
-                      onRefresh={() =>
-                        refreshAdmin().catch((e) => setError(e.message))
-                      }
-                    />
+                    <RequirePermission>
+                      <AdminDashboardPage
+                        progress={progress}
+                        apps={apps}
+                        onRefresh={() =>
+                          refreshAdmin().catch((e) => setError(e.message))
+                        }
+                      />
+                    </RequirePermission>
                   }
                 />
                 <Route
                   path="/apps"
-                  element={<AdminAppsListPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminAppsListPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/apps/:appId"
-                  element={<AdminAppDetailPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminAppDetailPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/versions/:versionId"
-                  element={<AdminVersionDetailPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminVersionDetailPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/municipalities"
-                  element={<AdminMunicipalitiesListPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminMunicipalitiesListPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/municipalities/:municipalityId"
-                  element={<AdminMunicipalityDetailPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminMunicipalityDetailPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/users"
-                  element={<AdminUsersPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminUsersPage token={token!} />
+                    </RequirePermission>
+                  }
+                />
+                <Route
+                  path="/wilaya-admins"
+                  element={
+                    <RequirePermission>
+                      <AdminWilayaAdminsPage token={token!} me={me!} />
+                    </RequirePermission>
+                  }
+                />
+                <Route
+                  path="/access-roles"
+                  element={
+                    <RequirePermission>
+                      <AdminAccessRolesPage token={token!} me={me!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/operations"
-                  element={<AdminOperationsListPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminOperationsListPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/operations/new"
-                  element={<AdminOperationCreatePage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminOperationCreatePage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/operations/:operationId"
-                  element={<AdminOperationDetailPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminOperationDetailPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/operations/:operationId/results"
-                  element={<AdminOperationResultsPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminOperationResultsPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/commune-it-staff"
-                  element={<AdminCommuneItStaffPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminCommuneItStaffPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/etat-principale/backup-servers"
-                  element={<AdminBackupServersPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminBackupServersPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/etat-principale/mclt-workstations"
-                  element={<AdminMcltWorkstationsPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminMcltWorkstationsPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/etat-principale/annex-rnc-authorizations"
-                  element={<AdminAnnexRncAuthorizationsPage token={token!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminAnnexRncAuthorizationsPage token={token!} />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/mail"
-                  element={<MailInboxPage token={token!} mode="admin" />}
+                  element={
+                    <RequirePermission>
+                      <MailInboxPage token={token!} mode="admin" />
+                    </RequirePermission>
+                  }
+                />
+                <Route
+                  path="/mail/validation/:validationId"
+                  element={
+                    <RequirePermission>
+                      <MailValidationDetailPage token={token!} mode="admin" />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="/mail/:threadId"
-                  element={<MailThreadPage token={token!} mode="admin" />}
+                  element={
+                    <RequirePermission>
+                      <MailThreadPage token={token!} mode="admin" />
+                    </RequirePermission>
+                  }
                 />
                 <Route
                   path="*"
-                  element={<AdminHubPage token={token!} me={me!} />}
+                  element={
+                    <RequirePermission>
+                      <AdminHubPage token={token!} me={me!} />
+                    </RequirePermission>
+                  }
                 />
               </>
             ) : (
@@ -394,13 +498,18 @@ function App() {
                   element={<MailInboxPage token={token!} mode="muni" />}
                 />
                 <Route
+                  path="/mail/validation/:validationId"
+                  element={<MailValidationDetailPage token={token!} mode="muni" />}
+                />
+                <Route
                   path="/mail/:threadId"
                   element={<MailThreadPage token={token!} mode="muni" />}
                 />
                 <Route path="*" element={<MuniHubPage />} />
               </>
             )}
-          </Routes>
+            </Routes>
+          </PermissionsProvider>
         )}
 
         <LoginModal

@@ -31,6 +31,11 @@ This document defines **cross-cutting standards** shared by all feature modules 
   - The `checkBlocked` middleware (or equivalent) must reject any request with a valid JWT if `Users.is_blocked = true`.
 - **Role checks**:
   - Endpoints must enforce role (`SUPER_ADMIN` vs `MUNI_ADMIN`) and scope (e.g., muni user can only access their municipality’s resources) per module rules.
+- **Access profiles (granular permissions)** — `spec/modules/ACCESS_PROFILES.md`:
+  - Each user may have an **access role template** (`none` / `view` / `manage` per permission key).
+  - Phase 1: data + resolver (`userAccessService`) + admin catalog APIs; routes still use role-only checks.
+  - Phase 2: use `requirePermission(permissionKey, minLevel)` middleware on routes; frontend hides modules with effective `none`.
+  - UI must not expose internal role enum names (`SUPER_ADMIN`, `MUNI_ADMIN`) — use **compte wilaya** / **compte commune**.
 
 ### Audit Logging (Mandatory)
 
@@ -110,11 +115,12 @@ The client expects **many modules** (target at least **8** features). Use a sing
 
 - Use a **dashboard / hub** layout with **large clickable tiles or buttons**: each tile shows an **icon + short title** (Arabic primary; French where configured), similar to modern launcher-style apps.
 - One click opens the corresponding module route (full-screen module UI below the same shell header).
-- Reserve ordering so core modules stay stable as new ones appear. Documented baseline order for tiles:
-  1. **Dashboard** (optional aggregate overview if implemented)
-  2. **Apps** (distribution / downloads — “see apps” features)
-  3. **Operations** (structured Excel-like operations)
-  4. … additional modules as specs are added (remaining slots up to 8+)
+- **Wilaya admin hub section order** (five sections; see `ACCESS_PROFILES.md`):
+  1. **État principal** (backup servers, MCLT, annex RNC)
+  2. **Commune & organisation** (operations, communes, annexes registry, IT staff)
+  3. **Applications** (dashboard + apps distribution)
+  4. **Wilaya & comptes** (`/wilaya-admins`, `/users`)
+  5. **Accès rapide** (shortcuts — lowest priority)
 
 #### Organization & users (Wilaya only) — **two separate flows**
 
@@ -130,9 +136,10 @@ Commune (municipality) setup and commune **agent** (user) setup must **not** be 
   - **Option A**: Two distinct **hub tiles** (e.g. “Communes” and “Agents des communes”), or
   - **Option B**: One **“Administration”** hub tile that opens a landing page with **two equal primary actions** (same two flows as separate routes).
   - Implementation choice; **requirement** is **two separate routes** and UIs, not one merged form.
-- **Add Wilaya admin** (`SUPER_ADMIN`): implement **only if** already in product scope; **omit** otherwise—do not invent ad‑hoc Wilaya user creation.
+- **Add Wilaya admin** (`SUPER_ADMIN`): `/wilaya-admins`; requires `can_create_wilaya_admins` on caller.
+- **Access role templates** (system enum + custom): assign on user; customize per-user overrides — `spec/modules/ACCESS_PROFILES.md`.
 
-Canonical detail and future extensions for this area: `spec/modules/ORGANIZATION.md`.
+Canonical detail: `spec/modules/ORGANIZATION.md` (accounts), `spec/modules/ACCESS_PROFILES.md` (permissions).
 
 ### Excel export (cross-cutting pattern)
 

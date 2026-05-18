@@ -1,3 +1,5 @@
+export type AccessLevel = 'none' | 'view' | 'manage'
+
 export type LoginResponse = {
   token: string
   user: {
@@ -7,6 +9,10 @@ export type LoginResponse = {
     role: 'SUPER_ADMIN' | 'MUNI_ADMIN'
     municipality_id: number | null
     can_create_wilaya_admins?: boolean
+    can_manage_access_roles?: boolean
+    use_custom_permissions?: boolean
+    access_role_template_id?: number | null
+    effective_permissions?: Record<string, AccessLevel>
   }
 }
 
@@ -84,11 +90,52 @@ export async function adminMunicipalityOverview(token: string, municipalityId: n
   return http<{ municipality: any; apps: any[] }>(`/admin/municipalities/${municipalityId}/overview`, { method: 'GET', token })
 }
 
-export async function adminCreateMuniUser(token: string, municipalityId: number, body: { username?: string; name?: string }) {
+export type UserCreateProfileBody = {
+  job_title?: string
+  email?: string
+  email_hidden?: boolean
+  access_role_template_id?: number
+}
+
+export async function adminCreateMuniUser(
+  token: string,
+  municipalityId: number,
+  body: { username?: string; name?: string } & UserCreateProfileBody,
+) {
   return http<{ user: any; credentials: { code8: string; pdf_url: string } }>(
     `/admin/municipalities/${municipalityId}/users`,
     { method: 'POST', token, body: JSON.stringify(body) },
   )
+}
+
+export type AccessRoleTemplateRow = {
+  id: number
+  slug: string
+  account_scope: 'wilaya' | 'commune'
+  name_ar: string
+  name_fr: string
+  description_ar?: string | null
+  description_fr?: string | null
+  is_system: boolean
+  is_active: boolean
+}
+
+export type UserAccessProfileUser = {
+  id: number
+  username: string
+  name: string | null
+  role: 'SUPER_ADMIN' | 'MUNI_ADMIN'
+  municipality_id: number | null
+  is_blocked: boolean
+  job_title: string | null
+  email: string | null
+  email_hidden: boolean
+  access_role_template_id: number | null
+  use_custom_permissions: boolean
+  can_manage_access_roles: boolean
+  can_create_wilaya_admins: boolean
+  department: { id: number; name_ar: string; name_fr: string } | null
+  access_role_template: { id: number; slug: string; name_ar: string; name_fr: string; account_scope: string } | null
 }
 
 export type CommuneAgentRow = {
@@ -99,6 +146,11 @@ export type CommuneAgentRow = {
   municipality_id: number | null
   is_blocked: boolean
   municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+  job_title?: string | null
+  email?: string | null
+  email_hidden?: boolean
+  access_role_template_id?: number | null
+  access_role_template?: { id: number; slug: string; name_ar: string; name_fr: string } | null
 }
 
 export async function adminCommuneAgentsList(
@@ -285,11 +337,133 @@ export async function adminUserSearch(token: string, q: string) {
   }>(`/admin/users/search?q=${qq}`, { method: 'GET', token })
 }
 
-export async function adminListWilayaAdmins(token: string) {
-  return http<{ admins: { id: number; name: string | null; role: 'SUPER_ADMIN' }[] }>(`/admin/wilaya-admins`, { method: 'GET', token })
+export type WilayaAdminRow = {
+  id: number
+  username: string
+  name: string | null
+  role: 'SUPER_ADMIN'
+  is_blocked: boolean
+  can_create_wilaya_admins: boolean
+  can_manage_access_roles?: boolean
+  job_title?: string | null
+  email?: string | null
+  email_hidden?: boolean
+  access_role_template_id?: number | null
+  use_custom_permissions?: boolean
+  access_role_template?: { id: number; slug: string; name_ar: string; name_fr: string } | null
 }
 
-export async function adminCreateWilayaAdmin(token: string, body: { username: string; name?: string }) {
+export async function adminAccessRoleTemplatesList(
+  token: string,
+  opts: { account_scope?: 'wilaya' | 'commune' } = {},
+) {
+  const scope = opts.account_scope ? `?account_scope=${opts.account_scope}` : ''
+  return http<{ templates: AccessRoleTemplateRow[] }>(`/admin/access/role-templates${scope}`, { method: 'GET', token })
+}
+
+export async function adminAccessRoleTemplateGet(token: string, templateId: number) {
+  return http<{
+    template: AccessRoleTemplateRow & {
+      permissions: { permission_key: string; access_level: AccessLevel }[]
+    }
+  }>(`/admin/access/role-templates/${templateId}`, { method: 'GET', token })
+}
+
+export async function adminAccessPermissionCatalog(
+  token: string,
+  opts: { account_scope?: 'wilaya' | 'commune' } = {},
+) {
+  const scope = opts.account_scope ? `?account_scope=${opts.account_scope}` : ''
+  return http<{
+    permissions: { key: string; module: string; label_fr: string; label_ar: string }[]
+    modules: string[]
+  }>(`/admin/access/permission-catalog${scope}`, { method: 'GET', token })
+}
+
+export type AccessRoleTemplateDetail = AccessRoleTemplateRow & {
+  permissions: { permission_key: string; access_level: AccessLevel }[]
+}
+
+export async function adminAccessRoleTemplateCreate(
+  token: string,
+  body: {
+    account_scope: 'wilaya' | 'commune'
+    name_ar: string
+    name_fr: string
+    description_ar?: string | null
+    description_fr?: string | null
+    permissions?: { permission_key: string; access_level: AccessLevel }[]
+  },
+) {
+  return http<{ template: AccessRoleTemplateDetail }>(`/admin/access/role-templates`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminAccessRoleTemplatePermissionsUpdate(
+  token: string,
+  templateId: number,
+  permissions: { permission_key: string; access_level: AccessLevel }[],
+) {
+  return http<{ template: AccessRoleTemplateDetail }>(
+    `/admin/access/role-templates/${templateId}/permissions`,
+    { method: 'PUT', token, body: JSON.stringify({ permissions }) },
+  )
+}
+
+export async function adminUserAccessProfileGet(token: string, userId: number) {
+  return http<{
+    user: UserAccessProfileUser
+    effective_permissions: Record<string, AccessLevel>
+    permission_overrides: { permission_key: string; access_level: AccessLevel }[]
+  }>(`/admin/users/${userId}/access-profile`, { method: 'GET', token })
+}
+
+export async function adminUserAccessProfilePatch(
+  token: string,
+  userId: number,
+  body: {
+    job_title?: string | null
+    email?: string | null
+    email_hidden?: boolean
+    access_role_template_id?: number
+    use_custom_permissions?: boolean
+    permission_overrides?: { permission_key: string; access_level: AccessLevel }[]
+  },
+) {
+  return http<{ profile: Awaited<ReturnType<typeof adminUserAccessProfileGet>> }>(
+    `/admin/users/${userId}/access-profile`,
+    { method: 'PATCH', token, body: JSON.stringify(body) },
+  )
+}
+
+export async function adminWilayaAdminsList(
+  token: string,
+  opts: { page?: number; pageSize?: number; q?: string } = {},
+) {
+  const page = opts.page ?? 1
+  const pageSize = opts.pageSize ?? 20
+  const q = opts.q ? `&q=${encodeURIComponent(opts.q)}` : ''
+  return http<{ rows: WilayaAdminRow[]; total: number; page: number; pageSize: number }>(
+    `/admin/wilaya-admins?page=${page}&pageSize=${pageSize}${q}`,
+    { method: 'GET', token },
+  )
+}
+
+/** Brief list for pickers (id + name only). */
+export async function adminListWilayaAdmins(token: string) {
+  return http<{ admins: { id: number; name: string | null; role: 'SUPER_ADMIN' }[] }>(
+    `/admin/wilaya-admins?brief=1`,
+    { method: 'GET', token },
+  )
+}
+
+export async function adminCreateWilayaAdmin(
+  token: string,
+  body: { username: string; name?: string } & UserCreateProfileBody,
+) {
   return http<{ user: { id: number; name: string | null; role: 'SUPER_ADMIN' }; credentials: { code8: string; pdf_url: string } }>(`/admin/wilaya-admins`, {
     method: 'POST',
     token,
@@ -306,7 +480,152 @@ export type MailThreadListItem = {
   recipient_municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
   created_by: { id: number; username: string; name: string | null; role: 'SUPER_ADMIN' | 'MUNI_ADMIN' } | null
   created_by_municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+  validation_outcome?: 'VALIDATED' | 'SENT_WITHOUT_VALIDATION' | null
   unread: boolean
+}
+
+export type MailSendRequestListItem = {
+  id: number
+  subject: string
+  status: 'PENDING_VALIDATION' | 'CHANGES_REQUESTED' | 'SENT' | 'SENT_WITHOUT_VALIDATION' | 'CANCELLED'
+  revision: number
+  thread_id: number | null
+  updated_at: string
+  created_by: { id: number; username: string; name: string | null } | null
+  validator_summary: { total: number; approved: number; rejected: number; pending: number }
+  my_validator_decision: 'PENDING' | 'APPROVED' | 'REJECTED' | null
+  is_author: boolean
+}
+
+export type MailSendRequestDetail = MailSendRequestListItem & {
+  body_html: string
+  target: unknown
+  created_at: string
+  sent_at: string | null
+  validators: Array<{
+    id: number
+    validator_user_id: number
+    decision: 'PENDING' | 'APPROVED' | 'REJECTED'
+    feedback_html: string | null
+    decided_at: string | null
+    user: { id: number; username: string; name: string | null; role: string } | null
+  }>
+  discussion: Array<{
+    id: number
+    body_html: string
+    created_at: string
+    author: { id: number; username: string; name: string | null; role: string } | null
+  }>
+  attachments: Array<{ id: number; filename: string; mime_type: string; size_bytes: number; file_url: string }>
+  my_role: 'author' | 'validator' | 'author_and_validator'
+}
+
+function mailPrefix(mode: 'admin' | 'muni') {
+  return mode === 'admin' ? '/admin/mail' : '/muni/mail'
+}
+
+export async function mailValidatorCandidates(token: string, mode: 'admin' | 'muni') {
+  return http<{ users: { id: number; username: string; name: string | null; role: string }[] }>(
+    `${mailPrefix(mode)}/validator-candidates`,
+    { method: 'GET', token },
+  )
+}
+
+export async function mailValidationPendingCount(token: string, mode: 'admin' | 'muni') {
+  return http<{ as_author: number; as_validator: number; total: number }>(
+    `${mailPrefix(mode)}/validation-pending-count`,
+    { method: 'GET', token },
+  )
+}
+
+export async function mailSendRequests(
+  token: string,
+  mode: 'admin' | 'muni',
+  opts: { view?: 'author' | 'validator'; status?: string; page?: number; pageSize?: number; q?: string } = {},
+) {
+  const page = opts.page ?? 1
+  const pageSize = opts.pageSize ?? 20
+  const view = opts.view ?? 'author'
+  const qs = [
+    `page=${page}`,
+    `pageSize=${pageSize}`,
+    `view=${view}`,
+    opts.status ? `status=${encodeURIComponent(opts.status)}` : '',
+    opts.q ? `q=${encodeURIComponent(opts.q)}` : '',
+  ]
+    .filter(Boolean)
+    .join('&')
+  return http<{ rows: MailSendRequestListItem[]; total: number; page: number; pageSize: number }>(
+    `${mailPrefix(mode)}/send-requests?${qs}`,
+    { method: 'GET', token },
+  )
+}
+
+export async function mailSendRequestDetail(token: string, mode: 'admin' | 'muni', id: number) {
+  return http<{ send_request: MailSendRequestDetail }>(`${mailPrefix(mode)}/send-requests/${id}`, {
+    method: 'GET',
+    token,
+  })
+}
+
+export async function mailSendRequestDiscussion(
+  token: string,
+  mode: 'admin' | 'muni',
+  id: number,
+  body_html: string,
+) {
+  return http<{ send_request: MailSendRequestDetail }>(`${mailPrefix(mode)}/send-requests/${id}/discussion`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ body_html }),
+  })
+}
+
+export async function mailSendRequestApprove(token: string, mode: 'admin' | 'muni', id: number) {
+  return http<{ finalized: boolean; thread_id: number | null; send_request: MailSendRequestDetail }>(
+    `${mailPrefix(mode)}/send-requests/${id}/approve`,
+    { method: 'POST', token },
+  )
+}
+
+export async function mailSendRequestReject(
+  token: string,
+  mode: 'admin' | 'muni',
+  id: number,
+  feedback_html: string,
+) {
+  return http<{ send_request: MailSendRequestDetail }>(`${mailPrefix(mode)}/send-requests/${id}/reject`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ feedback_html }),
+  })
+}
+
+export async function mailSendRequestForceSend(token: string, mode: 'admin' | 'muni', id: number) {
+  return http<{ thread_id: number; finalized: boolean }>(
+    `${mailPrefix(mode)}/send-requests/${id}/send-without-validation`,
+    { method: 'POST', token },
+  )
+}
+
+export async function mailSendRequestResubmit(
+  token: string,
+  mode: 'admin' | 'muni',
+  id: number,
+  opts: { subject?: string; body_html?: string; attachments?: File[] },
+) {
+  const fd = new FormData()
+  fd.append('subject', opts.subject ?? '')
+  fd.append('body_html', opts.body_html ?? '')
+  for (const f of opts.attachments || []) fd.append('attachments', f)
+  const res = await fetch(`${API_URL}${mailPrefix(mode)}/send-requests/${id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  return data as { send_request: MailSendRequestDetail }
 }
 
 export async function adminMailThreads(
@@ -343,12 +662,16 @@ export async function adminMailCreateThread(
     body_html: string
     target: { type: 'ALL_COMMUNES' } | { type: 'COMMUNES'; municipality_ids: number[] } | { type: 'USERS'; user_ids: number[] }
     attachments?: File[]
+    send_mode?: 'DIRECT' | 'VALIDATION'
+    validator_user_ids?: number[]
   },
 ) {
   const fd = new FormData()
   fd.append('subject', opts.subject)
   fd.append('body_html', opts.body_html)
   fd.append('target', JSON.stringify(opts.target))
+  if (opts.send_mode) fd.append('send_mode', opts.send_mode)
+  if (opts.validator_user_ids?.length) fd.append('validator_user_ids', JSON.stringify(opts.validator_user_ids))
   for (const f of opts.attachments || []) fd.append('attachments', f)
 
   const res = await fetch(`${API_URL}/admin/mail/threads`, {
@@ -358,7 +681,7 @@ export async function adminMailCreateThread(
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as any).error || 'Erreur')
-  return data as { thread_ids: number[] }
+  return data as { thread_ids: number[]; send_request_id?: number }
 }
 
 export async function adminMailReply(
@@ -415,12 +738,16 @@ export async function muniMailCreateThread(
     body_html: string
     target: { type: 'ALL_WILAYA_ADMINS' } | { type: 'WILAYA_ADMINS'; user_ids: number[] }
     attachments?: File[]
+    send_mode?: 'DIRECT' | 'VALIDATION'
+    validator_user_ids?: number[]
   },
 ) {
   const fd = new FormData()
   fd.append('subject', opts.subject)
   fd.append('body_html', opts.body_html)
   fd.append('target', JSON.stringify(opts.target))
+  if (opts.send_mode) fd.append('send_mode', opts.send_mode)
+  if (opts.validator_user_ids?.length) fd.append('validator_user_ids', JSON.stringify(opts.validator_user_ids))
   for (const f of opts.attachments || []) fd.append('attachments', f)
 
   const res = await fetch(`${API_URL}/muni/mail/threads`, {
@@ -430,7 +757,7 @@ export async function muniMailCreateThread(
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as any).error || 'Erreur')
-  return data as { thread: any }
+  return data as { thread: any; send_request_id?: number }
 }
 
 export async function muniMailWilayaSeen(token: string, threadId: number) {

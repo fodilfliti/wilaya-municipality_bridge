@@ -31,6 +31,8 @@ const { operationsMuniRouter } = require("./operationsMuni");
 const { etatPrincipaleMuniRouter } = require("./etatPrincipaleMuni");
 const { communeItStaffMuniRouter } = require("./communeItStaffMuni");
 const municipalityAnnexService = require("../modules/annexes/municipalityAnnexService");
+const mailSendRequestService = require("../modules/mail/mailSendRequestService");
+const { createMailValidationRouter } = require("./mailValidation");
 
 const muniRouter = express.Router();
 
@@ -99,6 +101,8 @@ const uploadMailAttachments = multer({
   }),
   limits: { fileSize: 50 * 1024 * 1024 },
 });
+
+muniRouter.use("/mail", createMailValidationRouter({ uploadMailAttachments }));
 
 // List wilaya admins for commune selection (no search needed)
 muniRouter.get("/wilaya-admins", async (req, res, next) => {
@@ -486,6 +490,7 @@ muniRouter.get("/mail/threads", async (req, res, next) => {
               name_fr: t.createdByMunicipality.name_fr,
             }
           : null,
+        validation_outcome: t.validation_outcome || null,
         unread,
       };
     });
@@ -727,6 +732,26 @@ muniRouter.post(
           return res.status(400).json({ error: "Invalid user_ids" });
       } else {
         return res.status(400).json({ error: "Invalid target" });
+      }
+
+      const sendMode = String(req.body?.send_mode || "DIRECT").toUpperCase();
+      if (sendMode === "VALIDATION") {
+        let validatorIds = req.body?.validator_user_ids;
+        if (typeof validatorIds === "string") {
+          try {
+            validatorIds = JSON.parse(validatorIds);
+          } catch {
+            return res.status(400).json({ error: "validator_user_ids must be valid JSON" });
+          }
+        }
+        const row = await mailSendRequestService.createSendRequest(req, {
+          subject,
+          body_html,
+          target,
+          validatorUserIds: Array.isArray(validatorIds) ? validatorIds : [],
+          attachments: req.files || [],
+        });
+        return res.status(201).json({ send_request_id: row.id });
       }
 
       const recipients = [

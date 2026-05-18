@@ -6,10 +6,18 @@ import * as api from '../api'
 import { Modal } from '../components/Modal'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
+import { Can } from '../permissions/Can'
+import { PAGE_PERMS } from '../permissions/pagePermissions'
+import { usePerm } from '../permissions/PermissionsContext'
+import { ViewOnlyBanner } from '../components/ViewOnlyBanner'
+
+const P = PAGE_PERMS.municipalities
 
 export function AdminMunicipalitiesListPage({ token }: { token: string }) {
   const { t } = useTranslation()
+  const { can } = usePerm()
   const snack = useSnackbar()
+  const canManage = can(P.manage, 'manage')
   const [error, setError] = useState<string | null>(null)
   const [modalSubmitting, setModalSubmitting] = useState(false)
   const [page, setPage] = useState(1)
@@ -53,9 +61,11 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <div className="title">{t('navMunicipalities')}</div>
         <div className="row">
-          <button className="btn btnPrimary" onClick={() => setCreateOpen(true)}>
-            + {t('createMunicipality')}
-          </button>
+          <Can perm={P.manage}>
+            <button className="btn btnPrimary" onClick={() => setCreateOpen(true)}>
+              + {t('createMunicipality')}
+            </button>
+          </Can>
           <button className="btn" onClick={() => load().catch(reportErr)}>
             {t('refresh')}
           </button>
@@ -63,6 +73,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
       </div>
 
       {error ? <div className="muted">{error}</div> : null}
+      {!canManage ? <ViewOnlyBanner /> : null}
 
       <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
         {items.map((m) => (
@@ -78,12 +89,14 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
                 <Link className="btn" to={`/municipalities/${m.id}`}>
                   {t('details')}
                 </Link>
-                <button className="btn" onClick={() => setEditMuni(m)}>
-                  {t('edit')}
-                </button>
-                <button className="btn btnWarning" onClick={() => setDeleteMuni(m)}>
-                  {t('delete')}
-                </button>
+                <Can perm={P.manage}>
+                  <button className="btn" onClick={() => setEditMuni(m)}>
+                    {t('edit')}
+                  </button>
+                  <button className="btn btnWarning" onClick={() => setDeleteMuni(m)}>
+                    {t('delete')}
+                  </button>
+                </Can>
               </div>
             </div>
           </div>

@@ -211,6 +211,7 @@ async function buildMcltMuniExportBuffer(muni, payload, locale) {
 
   ws.columns = [
     { width: 12 },
+    { width: 22 },
     { width: 16 },
     { width: 22 },
     { width: 22 },

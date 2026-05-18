@@ -10,6 +10,11 @@ module.exports = (sequelize) =>
       created_by_municipality_id: { type: DataTypes.BIGINT, allowNull: true },
       parent_thread_id: { type: DataTypes.BIGINT, allowNull: true },
       parent_message_id: { type: DataTypes.BIGINT, allowNull: true },
+      send_request_id: { type: DataTypes.BIGINT, allowNull: true },
+      validation_outcome: {
+        type: DataTypes.ENUM("VALIDATED", "SENT_WITHOUT_VALIDATION"),
+        allowNull: true,
+      },
       last_message_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
       created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW }
     },

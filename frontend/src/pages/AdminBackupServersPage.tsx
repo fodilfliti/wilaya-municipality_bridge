@@ -10,6 +10,12 @@ import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
 import { BackButton } from '../components/BackButton'
 import { EtatPrincipaleFilterBanner } from '../etatPrincipale/EtatPrincipaleFilterBanner'
 import { useAdminEtatWilayaFilter } from '../etatPrincipale/useAdminEtatWilayaFilter'
+import { Can } from '../permissions/Can'
+import { PAGE_PERMS } from '../permissions/pagePermissions'
+import { usePerm } from '../permissions/PermissionsContext'
+import { ViewOnlyBanner } from '../components/ViewOnlyBanner'
+
+const P = PAGE_PERMS.backupServers
 
 
 type MuniBlock = api.BackupServerStatusPayload['municipalities'][number]
@@ -32,6 +38,8 @@ function emptyServerDraft(): api.BackupServerLine {
 
 export function AdminBackupServersPage({ token }: { token: string }) {
   const { t, i18n } = useTranslation()
+  const { can } = usePerm()
+  const canManage = can(P.manage, 'manage')
   const lang = i18n.language === 'fr' ? 'fr' : 'ar'
   const snack = useSnackbar()
   const { filterMunicipalityId, clearFilter } = useAdminEtatWilayaFilter()
@@ -262,24 +270,26 @@ export function AdminBackupServersPage({ token }: { token: string }) {
         <div className="title" style={{ margin: 0 }}>
           {t('backupServersTitle')}
         </div>
-        <div className="row">
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Can perm={P.manage}>
+            <button
+              type="button"
+              className="btn btnPrimary"
+              disabled={loading}
+              onClick={() =>
+                exportXlsx().catch((e: unknown) => {
+                  const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
+                  const msg = formatApiErrorMessage(raw, t)
+                  setError(msg)
+                  snack.show(msg, 'error')
+                })
+              }
+            >
+              {t('backupServersExportWilaya')}
+            </button>
+          </Can>
           <button type="button" className="btn" disabled={loading} onClick={() => load()}>
             {t('backupServersReload')}
-          </button>
-          <button
-            type="button"
-            className="btn btnPrimary"
-            disabled={loading}
-            onClick={() =>
-              exportXlsx().catch((e: unknown) => {
-                const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
-                const msg = formatApiErrorMessage(raw, t)
-                setError(msg)
-                snack.show(msg, 'error')
-              })
-            }
-          >
-            {t('backupServersExportWilaya')}
           </button>
           <BackButton />
         </div>
@@ -294,6 +304,7 @@ export function AdminBackupServersPage({ token }: { token: string }) {
       ) : null}
 
       {error ? <div className="muted">{error}</div> : null}
+      {!canManage ? <ViewOnlyBanner /> : null}
 
       <div className="title" style={{ marginTop: 18, fontSize: 16 }}>
         {t('operationsDataTable')}
@@ -339,9 +350,11 @@ export function AdminBackupServersPage({ token }: { token: string }) {
                     <td style={boolCell(s.os_active)}>{yn(s.os_active, lang)}</td>
                     <td style={anomalyStyle}>{s.anomalie || '—'}</td>
                     <td>
-                      <button type="button" className="btn btnSmall" onClick={() => setEdit(block)}>
-                        {t('backupServersAdminEdit')}
-                      </button>
+                      <Can perm={P.manage}>
+                        <button type="button" className="btn btnSmall" onClick={() => setEdit(block)}>
+                          {t('backupServersAdminEdit')}
+                        </button>
+                      </Can>
                     </td>
                   </tr>
                 )

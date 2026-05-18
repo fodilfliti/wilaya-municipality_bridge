@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+
+export type RichTextEditorHandle = {
+  getHtml: () => string
+  isEmpty: () => boolean
+}
 
 function exec(cmd: string, value?: string) {
   try {
@@ -8,15 +13,14 @@ function exec(cmd: string, value?: string) {
   }
 }
 
-export function RichTextEditor({
-  html,
-  onChange,
-  placeholder,
-}: {
-  html: string
-  onChange: (nextHtml: string) => void
-  placeholder?: string
-}) {
+export const RichTextEditor = forwardRef<
+  RichTextEditorHandle,
+  {
+    html: string
+    onChange: (nextHtml: string) => void
+    placeholder?: string
+  }
+>(function RichTextEditor({ html, onChange, placeholder }, handle) {
   const ref = useRef<HTMLDivElement | null>(null)
   const placeholderText = useMemo(() => placeholder || '', [placeholder])
   const [state, setState] = useState({
@@ -36,6 +40,11 @@ export function RichTextEditor({
     const html = (el.innerHTML || '').replace(/\s+/g, '')
     return html === '' || html === '<br>' || html === '<div><br></div>'
   }
+
+  useImperativeHandle(handle, () => ({
+    getHtml: () => ref.current?.innerHTML ?? '',
+    isEmpty: () => computeEmpty(),
+  }))
 
   useEffect(() => {
     const el = ref.current
@@ -134,5 +143,5 @@ export function RichTextEditor({
       />
     </div>
   )
-}
+})
 

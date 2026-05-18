@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 
 const { User } = require("../db");
 const { audit } = require("../services/audit");
+const { enrichSessionUser } = require("../modules/access/userProfileService");
 const { getEnv } = require("../config/env");
 
 const authRouter = express.Router();
@@ -26,17 +27,8 @@ authRouter.post("/login", async (req, res, next) => {
       expiresIn: "12h"
     });
 
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        name: user.name,
-        role: user.role,
-        municipality_id: user.municipality_id,
-        can_create_wilaya_admins: Boolean(user.can_create_wilaya_admins)
-      }
-    });
+    const sessionUser = await enrichSessionUser(user);
+    res.json({ token, user: sessionUser });
   } catch (e) {
     next(e);
   }

@@ -21,6 +21,10 @@ const MailThread = require("./models/MailThread")(sequelize);
 const MailMessage = require("./models/MailMessage")(sequelize);
 const MailRecipient = require("./models/MailRecipient")(sequelize);
 const MailAttachment = require("./models/MailAttachment")(sequelize);
+const MailSendRequest = require("./models/MailSendRequest")(sequelize);
+const MailSendRequestValidator = require("./models/MailSendRequestValidator")(sequelize);
+const MailSendRequestDiscussion = require("./models/MailSendRequestDiscussion")(sequelize);
+const MailSendRequestAttachment = require("./models/MailSendRequestAttachment")(sequelize);
 const OperationPaletteColor = require("./models/OperationPaletteColor")(
   sequelize,
 );
@@ -38,10 +42,29 @@ const McltWorkstation = require("./models/McltWorkstation")(sequelize);
 const AnnexRncAuthorization = require("./models/AnnexRncAuthorization")(sequelize);
 const MunicipalityAnnex = require("./models/MunicipalityAnnex")(sequelize);
 const CommuneItProfessional = require("./models/CommuneItProfessional")(sequelize);
+const Department = require("./models/Department")(sequelize);
+const AccessRoleTemplate = require("./models/AccessRoleTemplate")(sequelize);
+const AccessRoleTemplatePermission = require("./models/AccessRoleTemplatePermission")(sequelize);
+const UserPermissionOverride = require("./models/UserPermissionOverride")(sequelize);
 
 // Associations
 Municipality.hasMany(User, { foreignKey: "municipality_id" });
 User.belongsTo(Municipality, { foreignKey: "municipality_id" });
+
+Department.hasMany(User, { foreignKey: "department_id", as: "users" });
+User.belongsTo(Department, { foreignKey: "department_id", as: "department" });
+
+AccessRoleTemplate.hasMany(AccessRoleTemplatePermission, {
+  foreignKey: "role_template_id",
+  as: "permissions"
+});
+AccessRoleTemplatePermission.belongsTo(AccessRoleTemplate, { foreignKey: "role_template_id" });
+
+AccessRoleTemplate.hasMany(User, { foreignKey: "access_role_template_id", as: "users" });
+User.belongsTo(AccessRoleTemplate, { foreignKey: "access_role_template_id", as: "accessRoleTemplate" });
+
+User.hasMany(UserPermissionOverride, { foreignKey: "user_id", as: "permissionOverrides" });
+UserPermissionOverride.belongsTo(User, { foreignKey: "user_id" });
 
 Application.hasMany(AppVersion, { foreignKey: "app_id" });
 AppVersion.belongsTo(Application, { foreignKey: "app_id" });
@@ -104,6 +127,19 @@ MailRecipient.belongsTo(Municipality, {
   as: "recipientMunicipality",
 });
 User.hasMany(MailRecipient, { foreignKey: "user_id" });
+
+MailSendRequest.belongsTo(User, { foreignKey: "created_by_user_id", as: "createdByUser" });
+MailSendRequest.belongsTo(Municipality, { foreignKey: "created_by_municipality_id", as: "createdByMunicipality" });
+MailSendRequest.belongsTo(MailThread, { foreignKey: "thread_id", as: "thread" });
+MailSendRequest.hasMany(MailSendRequestValidator, { foreignKey: "send_request_id", as: "validators" });
+MailSendRequestValidator.belongsTo(MailSendRequest, { foreignKey: "send_request_id", as: "sendRequest" });
+MailSendRequestValidator.belongsTo(User, { foreignKey: "validator_user_id", as: "validatorUser" });
+MailSendRequest.hasMany(MailSendRequestDiscussion, { foreignKey: "send_request_id", as: "discussion" });
+MailSendRequestDiscussion.belongsTo(MailSendRequest, { foreignKey: "send_request_id", as: "sendRequest" });
+MailSendRequestDiscussion.belongsTo(User, { foreignKey: "author_user_id", as: "authorUser" });
+MailSendRequest.hasMany(MailSendRequestAttachment, { foreignKey: "send_request_id", as: "attachments" });
+MailSendRequestAttachment.belongsTo(MailSendRequest, { foreignKey: "send_request_id", as: "sendRequest" });
+MailThread.belongsTo(MailSendRequest, { foreignKey: "send_request_id", as: "sendRequest" });
 
 Operation.belongsTo(User, {
   foreignKey: "created_by_user_id",
@@ -241,6 +277,10 @@ module.exports = {
   MailMessage,
   MailRecipient,
   MailAttachment,
+  MailSendRequest,
+  MailSendRequestValidator,
+  MailSendRequestDiscussion,
+  MailSendRequestAttachment,
   OperationPaletteColor,
   Operation,
   OperationRecipient,
@@ -254,4 +294,8 @@ module.exports = {
   AnnexRncAuthorization,
   MunicipalityAnnex,
   CommuneItProfessional,
+  Department,
+  AccessRoleTemplate,
+  AccessRoleTemplatePermission,
+  UserPermissionOverride,
 };

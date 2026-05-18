@@ -96,7 +96,7 @@ async function buildBackupServerWilayaExportBuffer(payload, locale) {
           const v = colNumber === 3 ? s.existe : colNumber === 5 ? s.configured : s.os_active;
           cell.fill = v ? FILL_BOOL_TRUE : FILL_BOOL_FALSE;
         }
-        if (colNumber === 8 && String(s.anomalie || "").trim()) cell.fill = FILL_ANOMALIE;
+        if (colNumber === 8 && String(s.anomalie || "").trim()) cell.fill = FILL_ANOMALY;
         cell.alignment =
           colNumber === 4 || colNumber === 6 || colNumber === 8
             ? { vertical: "middle", wrapText: true, readingOrder: locale === "ar" ? 2 : 1 }
@@ -177,9 +177,9 @@ async function buildBackupServerMuniExportBuffer(muni, payload, locale) {
         const v = colNumber === 3 ? s.existe : colNumber === 5 ? s.configured : s.os_active;
         cell.fill = v ? FILL_BOOL_TRUE : FILL_BOOL_FALSE;
       }
-      if (colNumber === 9 && String(s.anomalie || "").trim()) cell.fill = FILL_ANOMALY;
+      if (colNumber === 8 && String(s.anomalie || "").trim()) cell.fill = FILL_ANOMALY;
       cell.alignment =
-        colNumber === 5 || colNumber === 7 || colNumber === 9
+        colNumber === 4 || colNumber === 6 || colNumber === 8
           ? { vertical: "middle", wrapText: true, readingOrder: locale === "ar" ? 2 : 1 }
           : { vertical: "middle", horizontal: "center" };
     });

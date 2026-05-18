@@ -16,6 +16,12 @@ import {
   rncStatusLabel,
   rncStatusTableCellStyle,
 } from '../etatPrincipale/rncAuthUi'
+import { Can } from '../permissions/Can'
+import { PAGE_PERMS } from '../permissions/pagePermissions'
+import { usePerm } from '../permissions/PermissionsContext'
+import { ViewOnlyBanner } from '../components/ViewOnlyBanner'
+
+const P = PAGE_PERMS.annexRnc
 
 type MuniBlock = api.AnnexRncPayload['municipalities'][number]
 
@@ -34,6 +40,8 @@ function emptyLine(annexId: number): api.AnnexRncLine {
 
 export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
   const { t, i18n } = useTranslation()
+  const { can } = usePerm()
+  const canManage = can(P.manage, 'manage')
   const lang = i18n.language === 'fr' ? 'fr' : 'ar'
   const snack = useSnackbar()
   const { filterMunicipalityId, clearFilter } = useAdminEtatWilayaFilter()
@@ -291,18 +299,20 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
           <button type="button" className="btn" disabled={loading} onClick={() => load()}>
             {t('backupServersReload')}
           </button>
-          <button
-            type="button"
-            className="btn btnPrimary"
-            disabled={loading}
-            onClick={() =>
-              api
-                .downloadAdminAnnexRncXlsx(token, lang, { municipalityId: filterMunicipalityId ?? undefined })
-                .then(({ blob, filename }) => triggerBlobDownload(blob, filename))
-            }
-          >
-            {t('annexRncExportWilaya')}
-          </button>
+          <Can perm={P.manage}>
+            <button
+              type="button"
+              className="btn btnPrimary"
+              disabled={loading}
+              onClick={() =>
+                api
+                  .downloadAdminAnnexRncXlsx(token, lang, { municipalityId: filterMunicipalityId ?? undefined })
+                  .then(({ blob, filename }) => triggerBlobDownload(blob, filename))
+              }
+            >
+              {t('annexRncExportWilaya')}
+            </button>
+          </Can>
           <BackButton />
         </div>
       </div>
@@ -313,6 +323,7 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
         <EtatPrincipaleFilterBanner municipality={filterMunicipality} onClear={() => clearFilter()} />
       ) : null}
       {error ? <div className="muted">{error}</div> : null}
+      {!canManage ? <ViewOnlyBanner /> : null}
 
       {analytics && analytics.rnc_pending > 0 ? (
         <div
@@ -370,9 +381,11 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
                     <td>{line.ip_requested || '—'}</td>
                     <td style={rncStatusTableCellStyle(line.rnc_auth_status)}>{rncStatusLabel(line.rnc_auth_status, t)}</td>
                     <td>
-                      <button type="button" className="btn btnSmall" onClick={() => setEdit(block)}>
-                        {t('backupServersAdminEdit')}
-                      </button>
+                      <Can perm={P.manage}>
+                        <button type="button" className="btn btnSmall" onClick={() => setEdit(block)}>
+                          {t('backupServersAdminEdit')}
+                        </button>
+                      </Can>
                     </td>
                   </tr>
                 )

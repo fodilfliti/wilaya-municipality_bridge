@@ -33,8 +33,8 @@ function labels(locale) {
   return {
     sheetData: fr ? "IP RNC annexes" : "IP RNC الملحقات",
     sheetStats: fr ? "Statistiques" : "الإحصاءات",
-    code: fr ? "Code commune" : "رمز البلدية",
-    commune: fr ? "Nom commune" : "اسم البلدية",
+    code: fr ? "Code" : "الرمز",
+    commune: fr ? "Commune" : "البلدية",
     annex: fr ? "Nom annexe" : "اسم الملحق",
     ipAuth: fr ? "IP autorisée" : "IP مصرّح",
     year: fr ? "Année autorisation" : "سنة التفويض",
@@ -154,7 +154,8 @@ async function buildAnnexRncMuniExportBuffer(muni, payload, locale) {
   const L = labels(locale);
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(L.sheetData, { views: [{ rightToLeft: locale === "ar" }] });
-  const headers = [L.code, L.annex, L.ipAuth, L.year, L.ipCount, L.pcUsed, L.ipReq, L.rncStatus];
+  const cname = communeName(muni, locale);
+  const headers = [L.code, L.commune, L.annex, L.ipAuth, L.year, L.ipCount, L.pcUsed, L.ipReq, L.rncStatus];
   const colCount = headers.length;
   const headerRow = ws.addRow(headers);
   headerRow.height = 22;
@@ -167,12 +168,13 @@ async function buildAnnexRncMuniExportBuffer(muni, payload, locale) {
 
   const list = payload?.lines || [];
   if (!list.length) {
-    const row = ws.addRow([muni.code, "—", "—", "—", "—", "—", "—", "—"]);
+    const row = ws.addRow([muni.code, cname, "—", "—", "—", "—", "—", "—", "—"]);
     styleDataRow(row, { rncStatus: "none", colCount });
   } else {
     for (const line of list) {
       const row = ws.addRow([
         muni.code,
+        cname,
         line.annex_name || "—",
         line.ip_authorized || "—",
         line.authorization_year || "—",
@@ -187,6 +189,7 @@ async function buildAnnexRncMuniExportBuffer(muni, payload, locale) {
 
   ws.columns = [
     { width: 12 },
+    { width: 22 },
     { width: 22 },
     { width: 16 },
     { width: 14 },

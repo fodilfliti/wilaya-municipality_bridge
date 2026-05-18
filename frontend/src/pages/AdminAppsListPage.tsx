@@ -7,10 +7,18 @@ import { Modal } from '../components/Modal'
 import { ErrorPopup } from '../components/ErrorPopup'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
+import { Can } from '../permissions/Can'
+import { PAGE_PERMS } from '../permissions/pagePermissions'
+import { usePerm } from '../permissions/PermissionsContext'
+import { ViewOnlyBanner } from '../components/ViewOnlyBanner'
+
+const P = PAGE_PERMS.apps
 
 export function AdminAppsListPage({ token }: { token: string }) {
   const { t } = useTranslation()
+  const { can } = usePerm()
   const snack = useSnackbar()
+  const canManage = can(P.manage, 'manage')
   const [error, setError] = useState<string | null>(null)
   const [modalError, setModalError] = useState<string | null>(null)
   const [modalSubmitting, setModalSubmitting] = useState(false)
@@ -72,9 +80,11 @@ export function AdminAppsListPage({ token }: { token: string }) {
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="title">{t('apps')}</div>
         <div className="row">
-          <button className="btn btnPrimary" onClick={() => setCreateOpen(true)}>
-            {t('adminCreateAppCta')}
-          </button>
+          <Can perm={P.manage}>
+            <button className="btn btnPrimary" onClick={() => setCreateOpen(true)}>
+              {t('adminCreateAppCta')}
+            </button>
+          </Can>
           <button className="btn" onClick={() => load().catch(reportPageErr)}>
             {t('refresh')}
           </button>
@@ -82,6 +92,7 @@ export function AdminAppsListPage({ token }: { token: string }) {
       </div>
 
       {error ? <ErrorPopup message={error} onClose={() => setError(null)} /> : null}
+      {!canManage ? <ViewOnlyBanner /> : null}
 
       <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
         {apps.map((a) => (
@@ -119,18 +130,20 @@ export function AdminAppsListPage({ token }: { token: string }) {
                 <Link className="btn" to={`/apps/${a.id}`}>
                   {t('details')}
                 </Link>
-                <button className="btn" onClick={() => setEditApp(a)}>
-                  {t('edit')}
-                </button>
-                <button className="btn" onClick={() => setLogoApp(a)}>
-                  {t('uploadLogo')}
-                </button>
-                <button className="btn btnPrimary" onClick={() => setVersionApp(a)}>
-                  {t('uploadVersion')}
-                </button>
-                <button className="btn btnWarning" onClick={() => setDeleteApp(a)}>
-                  {t('delete')}
-                </button>
+                <Can perm={P.manage}>
+                  <button className="btn" onClick={() => setEditApp(a)}>
+                    {t('edit')}
+                  </button>
+                  <button className="btn" onClick={() => setLogoApp(a)}>
+                    {t('uploadLogo')}
+                  </button>
+                  <button className="btn btnPrimary" onClick={() => setVersionApp(a)}>
+                    {t('uploadVersion')}
+                  </button>
+                  <button className="btn btnWarning" onClick={() => setDeleteApp(a)}>
+                    {t('delete')}
+                  </button>
+                </Can>
               </div>
             </div>
           </div>

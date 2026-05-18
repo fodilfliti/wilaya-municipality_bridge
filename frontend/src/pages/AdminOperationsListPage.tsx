@@ -4,10 +4,18 @@ import { useTranslation } from 'react-i18next'
 import * as api from '../api'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
+import { Can } from '../permissions/Can'
+import { PAGE_PERMS } from '../permissions/pagePermissions'
+import { usePerm } from '../permissions/PermissionsContext'
+import { ViewOnlyBanner } from '../components/ViewOnlyBanner'
+
+const P = PAGE_PERMS.operations
 
 export function AdminOperationsListPage({ token }: { token: string }) {
   const { t, i18n } = useTranslation()
+  const { can } = usePerm()
   const snack = useSnackbar()
+  const canManage = can(P.manage, 'manage')
   const lang = i18n.language === 'fr' ? 'fr' : 'ar'
   const [rows, setRows] = useState<any[]>([])
   const [total, setTotal] = useState(0)
@@ -48,9 +56,11 @@ export function AdminOperationsListPage({ token }: { token: string }) {
           {t('operationsTitle')}
         </div>
         <div className="row">
-          <Link className="btn btnPrimary" to="/operations/new">
-            {t('operationsNew')}
-          </Link>
+          <Can perm={P.manage}>
+            <Link className="btn btnPrimary" to="/operations/new">
+              {t('operationsNew')}
+            </Link>
+          </Can>
         </div>
       </div>
 
@@ -75,6 +85,7 @@ export function AdminOperationsListPage({ token }: { token: string }) {
       </div>
 
       {error ? <div className="muted">{error}</div> : null}
+      {!canManage ? <ViewOnlyBanner /> : null}
 
       <div style={{ display: 'grid', gap: 10 }}>
         {rows.map((op) => {

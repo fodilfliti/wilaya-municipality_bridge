@@ -4,18 +4,25 @@ const { publicFileUrl } = require("./storage");
 
 /**
  * Create a mail thread with first message and recipients (same rules as admin POST /mail/threads).
- * @param {{ req: import("express").Request, subject: string, body_html: string, recipients: Array<{ user_id: number, recipient_kind: string, recipient_municipality_id: number | null }>, attachments?: any[] }} opts
+ * @param {{ req: import("express").Request, subject: string, body_html: string, recipients: Array<{ user_id: number, recipient_kind: string, recipient_municipality_id: number | null }>, attachments?: any[], author_user_id?: number, author_municipality_id?: number | null }} opts
  */
 async function createThreadWithRecipients(opts) {
-  const { req, subject, body_html, recipients, attachments } = opts;
+  const { req, subject, body_html, recipients, attachments, author_user_id, author_municipality_id } = opts;
+  const authorUserId = author_user_id != null ? Number(author_user_id) : Number(req.user.id);
+  const authorMunicipalityId =
+    author_municipality_id !== undefined
+      ? author_municipality_id
+      : req.user.role === "MUNI_ADMIN"
+        ? req.user.municipality_id
+        : null;
 
   return sequelize.transaction(async (transaction) => {
     const now = new Date();
     const thread = await MailThread.create(
       {
         subject,
-        created_by_user_id: req.user.id,
-        created_by_municipality_id: req.user.role === "MUNI_ADMIN" ? req.user.municipality_id : null,
+        created_by_user_id: authorUserId,
+        created_by_municipality_id: authorMunicipalityId,
         last_message_at: now,
         created_at: now,
       },
@@ -25,8 +32,8 @@ async function createThreadWithRecipients(opts) {
     const msg = await MailMessage.create(
       {
         thread_id: thread.id,
-        author_user_id: req.user.id,
-        author_municipality_id: req.user.role === "MUNI_ADMIN" ? req.user.municipality_id : null,
+        author_user_id: authorUserId,
+        author_municipality_id: authorMunicipalityId,
         body_html,
         created_at: now,
       },
@@ -64,14 +71,14 @@ async function createThreadWithRecipients(opts) {
       );
     }
 
-    const senderAlready = uniqueRecipients.some((r) => Number(r.user_id) === Number(req.user.id));
+    const senderAlready = uniqueRecipients.some((r) => Number(r.user_id) === authorUserId);
     if (!senderAlready) {
       await MailRecipient.create(
         {
           thread_id: thread.id,
-          user_id: req.user.id,
+          user_id: authorUserId,
           recipient_kind: "DIRECT_USER",
-          recipient_municipality_id: null,
+          recipient_municipality_id: authorMunicipalityId,
           last_read_at: now,
           first_seen_at: now,
           last_seen_at: now,
@@ -82,7 +89,7 @@ async function createThreadWithRecipients(opts) {
     } else {
       await MailRecipient.update(
         { last_read_at: now, first_seen_at: now, last_seen_at: now },
-        { where: { thread_id: thread.id, user_id: req.user.id }, transaction },
+        { where: { thread_id: thread.id, user_id: authorUserId }, transaction },
       );
     }
 

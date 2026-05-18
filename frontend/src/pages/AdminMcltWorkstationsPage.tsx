@@ -17,6 +17,12 @@ import {
   rncStatusLabel,
   rncStatusTableCellStyle,
 } from '../etatPrincipale/rncAuthUi'
+import { Can } from '../permissions/Can'
+import { PAGE_PERMS } from '../permissions/pagePermissions'
+import { usePerm } from '../permissions/PermissionsContext'
+import { ViewOnlyBanner } from '../components/ViewOnlyBanner'
+
+const P = PAGE_PERMS.mclt
 
 
 type MuniBlock = api.McltWorkstationPayload['municipalities'][number]
@@ -38,6 +44,8 @@ function emptyLine(): api.McltWorkstationLine {
 
 export function AdminMcltWorkstationsPage({ token }: { token: string }) {
   const { t, i18n } = useTranslation()
+  const { can } = usePerm()
+  const canManage = can(P.manage, 'manage')
   const lang = i18n.language === 'fr' ? 'fr' : 'ar'
   const snack = useSnackbar()
   const { filterMunicipalityId, clearFilter } = useAdminEtatWilayaFilter()
@@ -289,19 +297,21 @@ export function AdminMcltWorkstationsPage({ token }: { token: string }) {
           <button type="button" className="btn" disabled={loading} onClick={() => load()}>
             {t('backupServersReload')}
           </button>
-          <button
-            type="button"
-            className="btn btnPrimary"
-            disabled={loading}
-            onClick={() =>
-              exportXlsx().catch((e: unknown) => {
-                const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
-                snack.show(formatApiErrorMessage(raw, t), 'error')
-              })
-            }
-          >
-            {t('mcltExportWilaya')}
-          </button>
+          <Can perm={P.manage}>
+            <button
+              type="button"
+              className="btn btnPrimary"
+              disabled={loading}
+              onClick={() =>
+                exportXlsx().catch((e: unknown) => {
+                  const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
+                  snack.show(formatApiErrorMessage(raw, t), 'error')
+                })
+              }
+            >
+              {t('mcltExportWilaya')}
+            </button>
+          </Can>
           <BackButton />
         </div>
       </div>
@@ -315,6 +325,7 @@ export function AdminMcltWorkstationsPage({ token }: { token: string }) {
       ) : null}
 
       {error ? <div className="muted">{error}</div> : null}
+      {!canManage ? <ViewOnlyBanner /> : null}
 
       {analytics && analytics.rnc_pending > 0 ? (
         <div
@@ -375,9 +386,11 @@ export function AdminMcltWorkstationsPage({ token }: { token: string }) {
                     <td>{w.ip_rnc_authorized || '—'}</td>
                     <td style={rncStatusTableCellStyle(w.rnc_auth_status)}>{rncStatusLabel(w.rnc_auth_status, t)}</td>
                     <td>
-                      <button type="button" className="btn btnSmall" onClick={() => setEdit(block)}>
-                        {t('backupServersAdminEdit')}
-                      </button>
+                      <Can perm={P.manage}>
+                        <button type="button" className="btn btnSmall" onClick={() => setEdit(block)}>
+                          {t('backupServersAdminEdit')}
+                        </button>
+                      </Can>
                     </td>
                   </tr>
                 )

@@ -13,6 +13,16 @@
   - Each user has an **unread count** for threads.
   - Opening thread details **marks as read** and the UI decrements unread count.
 - **Navigation**: Mail is exposed in the **persistent top header** on every screen (see `spec/CORE.md` — App shell), not only from the home hub.
+- **Pre-send validation (optional, first message only)**:
+  - When **composing a new thread** (not when replying), the author may request validation from one or more colleagues before the message is delivered to real recipients.
+  - **All selected validators must approve** before the system sends the thread.
+  - A validator may **request changes** (feedback text); the author edits and **resubmits** for validation (validator decisions reset to pending).
+  - The author may **send without validation** (explicit action); the resulting thread is flagged for both author and validators.
+  - Author and validators can exchange **discussion messages** on the draft (e.g. when validators disagree — one approves, another requests changes).
+  - **Validator picker scope** (never show all users):
+    - **Commune (`MUNI_ADMIN`)**: other active `MUNI_ADMIN` users in the **same municipality** (chef, colleague, special department agent).
+    - **Wilaya (`SUPER_ADMIN`)**: other active `SUPER_ADMIN` users (wilaya admins).
+  - Replies in an existing thread are **never** subject to this workflow.
 
 ### Roles & rules
 - **SUPER_ADMIN (Wilaya)**:
@@ -57,6 +67,46 @@
 - `file_url` (string, required; `/files/mail/...`)
 - `created_at` (timestamp)
 
+#### MailSendRequests (draft + validation lifecycle; first message only)
+- `id`
+- `created_by_user_id` (FK Users, required)
+- `created_by_municipality_id` (FK Municipalities, nullable)
+- `subject`, `body_html` (same as message; sanitized HTML)
+- `target_json` (JSON; same shape as create-thread `target` for admin or muni)
+- `status` (enum):
+  - `PENDING_VALIDATION` — waiting for validators
+  - `CHANGES_REQUESTED` — at least one validator rejected with feedback
+  - `SENT` — all validators approved; thread created
+  - `SENT_WITHOUT_VALIDATION` — author bypassed validation; thread created
+  - `CANCELLED` (optional future)
+- `revision` (int, default 1; incremented on resubmit after changes)
+- `thread_id` (FK MailThreads, nullable until sent)
+- `created_at`, `updated_at`, `sent_at` (nullable)
+
+#### MailSendRequestValidators
+- `id`
+- `send_request_id` (FK)
+- `validator_user_id` (FK Users)
+- `decision` (enum: `PENDING`, `APPROVED`, `REJECTED`)
+- `feedback_html` (text, nullable; required on reject)
+- `decided_at` (timestamp, nullable)
+- **Uniq**: (`send_request_id`, `validator_user_id`)
+
+#### MailSendRequestDiscussion
+- `id`
+- `send_request_id`
+- `author_user_id`
+- `body_html` (sanitized)
+- `created_at`
+- Visible to request author and all validators on that request.
+
+#### MailSendRequestAttachments
+- Same fields as `MailAttachments` but linked to `send_request_id` until send; on finalize, copies become message attachments.
+
+#### MailThreads (extensions)
+- `send_request_id` (FK MailSendRequests, nullable)
+- `validation_outcome` (enum, nullable): `VALIDATED` | `SENT_WITHOUT_VALIDATION`
+
 #### MailRecipients (per-thread, per-user mailbox state)
 - `id`
 - `thread_id` (FK MailThreads, required)
@@ -88,6 +138,19 @@
 - When replying with `reply_to_message_id`, the UI shows a small quoted context block (author + timestamp + snippet) above the message body.
 - For **private replies**, if created from a specific message, the new private thread header shows “Created from message …” and keeps the message context.
 
+#### Pre-send validation workflow
+1. **Compose (new thread only)** — author chooses:
+   - **Send now** (default, no validation), or
+   - **Request validation** — pick one or more validators from scoped list; creates `MailSendRequest` in `PENDING_VALIDATION` (no thread yet).
+2. **Validators** see items in **Validations** inbox (`view=validator`). Each can:
+   - **Approve** → when all validators are `APPROVED`, system creates the thread, sets `validation_outcome = VALIDATED`, status `SENT`.
+   - **Request changes** → `feedback_html` required; their decision `REJECTED`; request status `CHANGES_REQUESTED`.
+3. **Author** sees **Validations** inbox (`view=author`):
+   - Edit draft + **Resubmit** → resets validators to `PENDING`, status `PENDING_VALIDATION`, `revision++`.
+   - **Send without validation** → creates thread immediately, `validation_outcome = SENT_WITHOUT_VALIDATION`, status `SENT_WITHOUT_VALIDATION`.
+4. **Discussion** on the draft: author and validators post messages (`MailSendRequestDiscussion`) to align (e.g. split opinion between validators).
+5. **After send**: thread appears in normal mail inbox; list/detail show badge **validated** vs **sent without validation** for author and validators who participated.
+
 #### Private reply threads (municipality → Wilaya only)
 - Municipality users can create a **new private thread** to Wilaya admins only, linked to the original thread/message context:
   - Stores `parent_thread_id = :threadId`
@@ -99,6 +162,23 @@
 #### Admin (SUPER_ADMIN)
 - `GET /admin/mail/threads?page=&pageSize=&q=&unread=0|1`
   - Returns inbox threads for the admin user with unread flag + last_message_at.
+- `GET /admin/mail/validator-candidates`
+  - Returns other active `SUPER_ADMIN` users (`id`, `name`, `username`) excluding self. For validation picker only.
+- `GET /admin/mail/send-requests?view=author|validator&status=&page=&pageSize=&q=`
+  - Lists validation drafts where user is author or validator; includes aggregate validator decisions summary.
+- `GET /admin/mail/send-requests/:id`
+  - Full draft: body, target, validators, discussion, attachments; role-aware (author or validator only).
+- `PATCH /admin/mail/send-requests/:id`
+  - Author only; `status` must be `PENDING_VALIDATION` or `CHANGES_REQUESTED`. Body: `subject`, `body_html`, optional new `attachments[]` (multipart).
+  - Resets all validators to `PENDING`; status → `PENDING_VALIDATION`; increments `revision`.
+- `POST /admin/mail/send-requests/:id/discussion`
+  - Body: `body_html`. Author or validator on this request.
+- `POST /admin/mail/send-requests/:id/approve`
+  - Validator only; sets decision `APPROVED`. If all approved → finalize send (create thread).
+- `POST /admin/mail/send-requests/:id/reject`
+  - Validator only; body: `feedback_html` (required). Sets `REJECTED`; status → `CHANGES_REQUESTED`.
+- `POST /admin/mail/send-requests/:id/send-without-validation`
+  - Author only; finalize thread with `SENT_WITHOUT_VALIDATION`.
 - `POST /admin/mail/threads`
   - Create a new thread with first message.
   - Body fields:
@@ -108,6 +188,9 @@
       - `{ type: "ALL_COMMUNES" }` OR
       - `{ type: "COMMUNES", municipality_ids: number[] }` OR
       - `{ type: "USERS", user_ids: number[] }`
+    - `send_mode` (optional): `DIRECT` (default) | `VALIDATION`
+    - `validator_user_ids` (number[], required if `send_mode=VALIDATION`, min 1) — must be subset of `validator-candidates`
+  - If `VALIDATION`: creates `MailSendRequest` only (response `{ send_request_id }`). If `DIRECT`: creates thread as today (`{ thread_ids }`).
   - Multipart attachments: `attachments[]`
 - `GET /admin/mail/threads/:threadId`
   - Thread details: messages, attachments, participants, and marks as read for requesting admin.
@@ -120,6 +203,12 @@
   - Returns users (username + role + municipality) for recipient picker (auto-search).
 
 #### Municipality (MUNI_ADMIN)
+- `GET /muni/mail/validator-candidates` — other active `MUNI_ADMIN` in same `municipality_id`, excluding self.
+- `GET /muni/mail/send-requests?...` — same semantics as admin (scoped to commune validators).
+- `GET /muni/mail/send-requests/:id`
+- `PATCH /muni/mail/send-requests/:id`
+- `POST /muni/mail/send-requests/:id/discussion|approve|reject|send-without-validation`
+- `POST /muni/mail/threads` — supports `send_mode` / `validator_user_ids` like admin.
 - `GET /muni/mail/threads?page=&pageSize=&q=&unread=0|1`
 - `GET /muni/mail/threads/:threadId`
   - Marks as read/seen for requesting user.
@@ -134,7 +223,19 @@
     - `parent_message_id` (optional)
   - Multipart attachments: `attachments[]`
 
+### UI/UX (validation)
+- **Mail inbox** has two tabs: **Inbox** | **Validations** (Arabic/French labels in i18n).
+- **Validations** tab: toggle **As author** / **As validator**; status filter chips; row shows subject, status badge, validator progress (e.g. 1/2 approved).
+- **Compose modal** (new thread only): optional section **Request validation** — multi-select validators from scoped list; primary actions: **Send for validation** vs **Send now**; help text that replies do not use validation.
+- **Validation detail** (`/mail/validation/:id`): draft preview, validator cards (pending/approved/rejected + feedback), discussion thread, actions per role (approve / request changes / resubmit / send without validation).
+- **Thread list/detail**: pill when `validation_outcome` is set (`VALIDATED` green-style, `SENT_WITHOUT_VALIDATION` warning-style) visible to author and validators who were on the request.
+
 ### Audit events (mandatory minimum)
+- `MAIL_SEND_REQUEST_CREATE` (actor, send_request_id, validator_ids)
+- `MAIL_SEND_REQUEST_APPROVE` / `MAIL_SEND_REQUEST_REJECT` (actor, send_request_id, decision)
+- `MAIL_SEND_REQUEST_RESUBMIT` (actor, send_request_id, revision)
+- `MAIL_SEND_REQUEST_FORCE_SEND` (actor, send_request_id, thread_id)
+- `MAIL_SEND_REQUEST_DISCUSSION` (actor, send_request_id)
 - `MAIL_THREAD_CREATE` (actor, target type + ids)
 - `MAIL_MESSAGE_CREATE` (actor, thread_id, message_id)
 - `MAIL_THREAD_SEEN` (actor, thread_id, first_seen_at/last_seen_at)

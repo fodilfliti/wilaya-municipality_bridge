@@ -6,6 +6,9 @@ export type HubTile = {
   titleKey: string;
   descKey: string;
   icon: string;
+  /** When set, tile is hidden unless the user has at least this access on the key. */
+  permissionKey?: string;
+  permissionMin?: "view" | "manage";
 };
 
 export function HubTileLink({ tile }: { tile: HubTile }) {

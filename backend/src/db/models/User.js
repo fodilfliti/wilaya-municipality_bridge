@@ -11,7 +11,14 @@ module.exports = (sequelize) =>
       role: { type: DataTypes.ENUM("SUPER_ADMIN", "MUNI_ADMIN"), allowNull: false },
       municipality_id: { type: DataTypes.BIGINT, allowNull: true },
       is_blocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-      can_create_wilaya_admins: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
+      can_create_wilaya_admins: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      job_title: { type: DataTypes.STRING(120), allowNull: true },
+      department_id: { type: DataTypes.BIGINT, allowNull: true },
+      email: { type: DataTypes.STRING(255), allowNull: true },
+      email_hidden: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      access_role_template_id: { type: DataTypes.BIGINT, allowNull: true },
+      use_custom_permissions: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      can_manage_access_roles: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
     },
     {
       tableName: "users",

@@ -13,6 +13,8 @@ import {
 } from "../components/MuniDetailSectionChip";
 import { useSnackbar } from "../snackbar/SnackbarContext";
 import { formatApiErrorMessage } from "../snackbar/formatApiErrorMessage";
+import { Can } from "../permissions/Can";
+import { PAGE_PERMS } from "../permissions/pagePermissions";
 
 const SECTIONS: MuniDetailSectionDef[] = [
   { id: "apps", titleKey: "muniDetailTabApps", descKey: "muniDetailTabAppsDesc", icon: "\u{1F4E6}" },
@@ -266,9 +268,11 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
                 <div style={{ fontWeight: 900, marginBottom: 6 }}>{t("muniDetailTabUsers")}</div>
                 <div className="muted">{t("muniDetailUsersHint")}</div>
               </div>
-              <Link className="btn btnPrimary" to={`/users?municipalityId=${municipalityId}`}>
-                {t("muniDetailManageUsers")}
-              </Link>
+              <Can perm={PAGE_PERMS.communeAgents.manage}>
+                <Link className="btn btnPrimary" to={`/users?municipalityId=${municipalityId}`}>
+                  {t("muniDetailManageUsers")}
+                </Link>
+              </Can>
             </div>
             <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
               {users.map((u) => (
@@ -316,9 +320,11 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
                 <div style={{ fontWeight: 900, marginBottom: 6 }}>{t("annexesSectionTitle")}</div>
                 <div className="muted">{t("annexesSectionAdminHint")}</div>
               </div>
-              <button type="button" className="btn btnPrimary" onClick={openAnnexCreate}>
-                {t("annexAdd")}
-              </button>
+              <Can perm={PAGE_PERMS.annexes.manage}>
+                <button type="button" className="btn btnPrimary" onClick={openAnnexCreate}>
+                  {t("annexAdd")}
+                </button>
+              </Can>
             </div>
             <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
               {annexes.map((a) => (
@@ -339,12 +345,14 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
                       </div>
                     </div>
                     <div className="row" style={{ flexShrink: 0 }}>
-                      <button type="button" className="btn" onClick={() => openAnnexEdit(a)}>
-                        {t("edit")}
-                      </button>
-                      <button type="button" className="btn" onClick={() => deleteAnnex(Number(a.id))}>
-                        {t("delete")}
-                      </button>
+                      <Can perm={PAGE_PERMS.annexes.manage}>
+                        <button type="button" className="btn" onClick={() => openAnnexEdit(a)}>
+                          {t("edit")}
+                        </button>
+                        <button type="button" className="btn" onClick={() => deleteAnnex(Number(a.id))}>
+                          {t("delete")}
+                        </button>
+                      </Can>
                     </div>
                   </div>
                 </div>

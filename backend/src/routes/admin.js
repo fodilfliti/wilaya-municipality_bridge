@@ -15,8 +15,14 @@ const { generateCredentialsPdf, generateVersionProgressPdf } = require("../servi
 const { operationsAdminRouter } = require("./operationsAdmin");
 const { communeItStaffAdminRouter } = require("./communeItStaffAdmin");
 const { communeAgentsAdminRouter } = require("./communeAgentsAdmin");
+const { wilayaAdminsAdminRouter } = require("./wilayaAdminsAdmin");
+const { accessAdminRouter } = require("./accessAdmin");
+const { userAccessAdminRouter } = require("./userAccessAdmin");
+const userProfileService = require("../modules/access/userProfileService");
 const { etatPrincipaleAdminRouter } = require("./etatPrincipaleAdmin");
 const { createThreadWithRecipients } = require("../services/mailThreadCreate");
+const mailSendRequestService = require("../modules/mail/mailSendRequestService");
+const { createMailValidationRouter } = require("./mailValidation");
 const municipalityAnnexService = require("../modules/annexes/municipalityAnnexService");
 
 const adminRouter = express.Router();
@@ -26,6 +32,9 @@ adminRouter.use(requireAuth, attachUser, checkBlocked, requireRole("SUPER_ADMIN"
 adminRouter.use(operationsAdminRouter);
 adminRouter.use(communeItStaffAdminRouter);
 adminRouter.use(communeAgentsAdminRouter);
+adminRouter.use(wilayaAdminsAdminRouter);
+adminRouter.use(accessAdminRouter);
+adminRouter.use(userAccessAdminRouter);
 adminRouter.use(etatPrincipaleAdminRouter);
 
 const uploadLogo = multer({
@@ -69,6 +78,8 @@ const uploadMailAttachments = multer({
   }),
   limits: { fileSize: 50 * 1024 * 1024 }
 });
+
+adminRouter.use("/mail", createMailValidationRouter({ uploadMailAttachments }));
 
 adminRouter.post("/apps", async (req, res, next) => {
   try {
@@ -986,6 +997,12 @@ adminRouter.post("/municipalities/:municipalityId/users", async (req, res, next)
         pdf_url: pdf.file_url
       },
       async (transaction) => {
+        const profileOut = await userProfileService.parseUserProfileCreateFields(req.body, "MUNI_ADMIN");
+        if (profileOut.error) {
+          const err = new Error(profileOut.error);
+          err.status = profileOut.status;
+          throw err;
+        }
         const user = await User.create(
           {
             username,
@@ -993,7 +1010,8 @@ adminRouter.post("/municipalities/:municipalityId/users", async (req, res, next)
             password_hash,
             role: "MUNI_ADMIN",
             municipality_id: muni.id,
-            is_blocked: false
+            is_blocked: false,
+            ...profileOut.fields
           },
           { transaction }
         );
@@ -1010,26 +1028,7 @@ adminRouter.post("/municipalities/:municipalityId/users", async (req, res, next)
   }
 });
 
-// Wilaya admins (SUPER_ADMIN) management
-adminRouter.get("/wilaya-admins", async (req, res, next) => {
-  try {
-    const users = await User.findAll({
-      where: { role: "SUPER_ADMIN" },
-      attributes: ["id", "name", "role"],
-      order: [["id", "ASC"]]
-    });
-    res.json({
-      admins: users.map((u) => ({
-        id: u.id,
-        name: u.name,
-        role: u.role
-      }))
-    });
-  } catch (e) {
-    next(e);
-  }
-});
-
+// Wilaya admins (SUPER_ADMIN) management — GET list: wilayaAdminsAdminRouter
 adminRouter.post("/wilaya-admins", async (req, res, next) => {
   try {
     if (!req.user?.can_create_wilaya_admins) return res.status(403).json({ error: "Forbidden" });
@@ -1069,6 +1068,12 @@ adminRouter.post("/wilaya-admins", async (req, res, next) => {
         pdf_url: pdf.file_url
       },
       async (transaction) => {
+        const profileOut = await userProfileService.parseUserProfileCreateFields(req.body, "SUPER_ADMIN");
+        if (profileOut.error) {
+          const err = new Error(profileOut.error);
+          err.status = profileOut.status;
+          throw err;
+        }
         const user = await User.create(
           {
             username,
@@ -1076,7 +1081,10 @@ adminRouter.post("/wilaya-admins", async (req, res, next) => {
             password_hash,
             role: "SUPER_ADMIN",
             municipality_id: null,
-            is_blocked: false
+            is_blocked: false,
+            can_manage_access_roles: false,
+            can_create_wilaya_admins: false,
+            ...profileOut.fields
           },
           { transaction }
         );
@@ -1136,6 +1144,9 @@ adminRouter.post("/users/:userId/reset", async (req, res, next) => {
 
 adminRouter.post("/users/:userId/block", async (req, res, next) => {
   try {
+    if (Number(req.params.userId) === Number(req.user.id)) {
+      return res.status(400).json({ error: "Cannot block your own account" });
+    }
     const user = await User.findByPk(req.params.userId);
     if (!user) return res.status(404).json({ error: "User not found" });
     const before = user.toJSON();
@@ -1400,6 +1411,7 @@ adminRouter.get("/mail/threads", async (req, res, next) => {
         created_by_municipality: t.createdByMunicipality
           ? { id: t.createdByMunicipality.id, code: t.createdByMunicipality.code, name_ar: t.createdByMunicipality.name_ar, name_fr: t.createdByMunicipality.name_fr }
           : null,
+        validation_outcome: t.validation_outcome || null,
         unread
       };
     });
@@ -1548,6 +1560,26 @@ adminRouter.post("/mail/threads", uploadMailAttachments.array("attachments", 10)
       return res.status(400).json({ error: "target must be valid JSON" });
     }
     if (!target?.type) return res.status(400).json({ error: "target.type is required" });
+
+    const sendMode = String(req.body?.send_mode || "DIRECT").toUpperCase();
+    if (sendMode === "VALIDATION") {
+      let validatorIds = req.body?.validator_user_ids;
+      if (typeof validatorIds === "string") {
+        try {
+          validatorIds = JSON.parse(validatorIds);
+        } catch {
+          return res.status(400).json({ error: "validator_user_ids must be valid JSON" });
+        }
+      }
+      const row = await mailSendRequestService.createSendRequest(req, {
+        subject,
+        body_html,
+        target,
+        validatorUserIds: Array.isArray(validatorIds) ? validatorIds : [],
+        attachments: req.files || [],
+      });
+      return res.status(201).json({ send_request_id: row.id });
+    }
 
     const createdThreadIds = [];
 

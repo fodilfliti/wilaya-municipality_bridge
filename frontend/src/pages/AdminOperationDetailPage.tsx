@@ -9,6 +9,12 @@ import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
 import { labelColumn } from '../operations/format'
 import { normalizeHex, PaletteSwatchDropdown } from '../operations/PaletteSwatchDropdown'
 import { Modal } from '../components/Modal'
+import { Can } from '../permissions/Can'
+import { PAGE_PERMS } from '../permissions/pagePermissions'
+import { usePerm } from '../permissions/PermissionsContext'
+import { ViewOnlyBanner } from '../components/ViewOnlyBanner'
+
+const P = PAGE_PERMS.operations
 
 type TargetMode = 'ALL_COMMUNES' | 'COMMUNES' | 'USERS'
 
@@ -99,6 +105,8 @@ export function AdminOperationDetailPage({ token }: { token: string }) {
   const id = Number(operationId)
   const { t, i18n } = useTranslation()
   const lang = i18n.language === 'fr' ? 'fr' : 'ar'
+  const { can } = usePerm()
+  const canManage = can(P.manage, 'manage')
   const snack = useSnackbar()
 
   function reportApiError(e: unknown) {
@@ -485,18 +493,20 @@ export function AdminOperationDetailPage({ token }: { token: string }) {
           {op?.title || '...'}
         </div>
         <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-          <button
-            type="button"
-            className="btn btnSoft"
-            title={t('operationsNotifyRecipientsHint')}
-            onClick={() => {
-              setNotifyModalError(null)
-              setNotifyNote('')
-              setNotifyUpdateOpen(true)
-            }}
-          >
-            {t('operationsNotifyRecipientsCta')}
-          </button>
+          <Can perm={P.manage}>
+            <button
+              type="button"
+              className="btn btnSoft"
+              title={t('operationsNotifyRecipientsHint')}
+              onClick={() => {
+                setNotifyModalError(null)
+                setNotifyNote('')
+                setNotifyUpdateOpen(true)
+              }}
+            >
+              {t('operationsNotifyRecipientsCta')}
+            </button>
+          </Can>
           <Link className="btn btnPrimary" to={`/operations/${id}/results`} state={{ resultsBackTarget: 'detail' }}>
             {t('operationsResults')}
           </Link>
@@ -505,6 +515,7 @@ export function AdminOperationDetailPage({ token }: { token: string }) {
       </div>
 
       {error ? <div className="muted">{error}</div> : null}
+      {!canManage ? <ViewOnlyBanner /> : null}
 
       <div className="title" style={{ marginTop: 16, fontSize: 16 }}>
         {t('operationsMeta')}
@@ -512,17 +523,19 @@ export function AdminOperationDetailPage({ token }: { token: string }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
         <label className="field">
           <div className="muted">{t('mailSubject')}</div>
-          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} disabled={!canManage} />
         </label>
         <label className="field">
           <div className="muted">{t('appDescription')}</div>
-          <textarea className="input opsDescriptionField" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+          <textarea className="input opsDescriptionField" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canManage} />
         </label>
-        <div>
-          <button type="button" className="btn btnPrimary" onClick={() => saveMeta()}>
-            {t('save')}
-          </button>
-        </div>
+        <Can perm={P.manage}>
+          <div>
+            <button type="button" className="btn btnPrimary" onClick={() => saveMeta()}>
+              {t('save')}
+            </button>
+          </div>
+        </Can>
       </div>
 
       <div className="title" style={{ marginTop: 18, fontSize: 16 }}>
@@ -609,9 +622,11 @@ export function AdminOperationDetailPage({ token }: { token: string }) {
         </div>
       ) : null}
 
-      <button type="button" className="btn btnPrimary" style={{ marginTop: 12 }} disabled={savingRecipients} onClick={() => saveRecipients()}>
-        {savingRecipients ? '...' : t('operationsSaveRecipients')}
-      </button>
+      <Can perm={P.manage}>
+        <button type="button" className="btn btnPrimary" style={{ marginTop: 12 }} disabled={savingRecipients} onClick={() => saveRecipients()}>
+          {savingRecipients ? '...' : t('operationsSaveRecipients')}
+        </button>
+      </Can>
 
       <div className="title" style={{ marginTop: 22, fontSize: 16 }}>
         {t('operationsColumns')}

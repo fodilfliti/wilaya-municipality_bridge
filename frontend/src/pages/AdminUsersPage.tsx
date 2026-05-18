@@ -6,13 +6,27 @@ import * as api from "../api";
 import { Modal } from "../components/Modal";
 import { useSnackbar } from "../snackbar/SnackbarContext";
 import { formatApiErrorMessage } from "../snackbar/formatApiErrorMessage";
+import { UserAccessProfileModal } from "../components/UserAccessProfileModal";
+import { Can } from "../permissions/Can";
+import { PAGE_PERMS } from "../permissions/pagePermissions";
+import { usePerm } from "../permissions/PermissionsContext";
+import { ViewOnlyBanner } from "../components/ViewOnlyBanner";
+import {
+  UserCreateProfileFields,
+  emptyUserCreateProfileDraft,
+  userCreateProfileToBody,
+} from "../components/UserCreateProfileFields";
+
+const P = PAGE_PERMS.communeAgents;
 
 type MuniOpt = { id: number; code: string; name_ar: string; name_fr: string };
 
 export function AdminUsersPage({ token }: { token: string }) {
   const { t, i18n } = useTranslation();
+  const { can } = usePerm();
   const lang = i18n.language === "fr" ? "fr" : "ar";
   const snack = useSnackbar();
+  const canManage = can(P.manage, "manage");
   const [searchParams] = useSearchParams();
   const initialMuniId = Number(searchParams.get("municipalityId") || "") || "";
 
@@ -31,11 +45,13 @@ export function AdminUsersPage({ token }: { token: string }) {
   const [formMunicipalityId, setFormMunicipalityId] = useState<number | "">("");
   const [optUsername, setOptUsername] = useState("");
   const [optName, setOptName] = useState("");
+  const [createProfile, setCreateProfile] = useState(emptyUserCreateProfileDraft);
   const [createdCreds, setCreatedCreds] = useState<{ code8: string; pdf_url: string } | null>(null);
 
   const [resetUser, setResetUser] = useState<api.CommuneAgentRow | null>(null);
   const [blockUser, setBlockUser] = useState<api.CommuneAgentRow | null>(null);
   const [unblockUser, setUnblockUser] = useState<api.CommuneAgentRow | null>(null);
+  const [profileUser, setProfileUser] = useState<api.CommuneAgentRow | null>(null);
 
   const muniLabel = (m: MuniOpt | null | undefined) => {
     if (!m) return "";
@@ -91,6 +107,7 @@ export function AdminUsersPage({ token }: { token: string }) {
     );
     setOptUsername("");
     setOptName("");
+    setCreateProfile(emptyUserCreateProfileDraft());
     setCreateOpen(true);
   }
 
@@ -106,9 +123,11 @@ export function AdminUsersPage({ token }: { token: string }) {
           {t("communeAgentsAdminTitle")}
         </div>
         <div className="row">
-          <button type="button" className="btn btnPrimary" onClick={openCreate}>
-            {t("createUserCta")}
-          </button>
+          <Can perm={P.manage}>
+            <button type="button" className="btn btnPrimary" onClick={openCreate}>
+              {t("createUserCta")}
+            </button>
+          </Can>
           <button type="button" className="btn" onClick={() => loadRows().catch(() => {})}>
             {t("refresh")}
           </button>
@@ -119,6 +138,7 @@ export function AdminUsersPage({ token }: { token: string }) {
       <div className="muted" style={{ marginTop: 8, marginBottom: 14 }}>
         {t("communeAgentsAdminIntro")}
       </div>
+      {!canManage ? <ViewOnlyBanner /> : null}
 
       <div className="row" style={{ flexWrap: "wrap", gap: 10, marginBottom: 12, alignItems: "flex-end" }}>
         <label className="field" style={{ minWidth: 160 }}>
@@ -177,7 +197,9 @@ export function AdminUsersPage({ token }: { token: string }) {
                 <th>{t("itStaffCommune")}</th>
                 <th>{t("username")}</th>
                 <th>{t("name")}</th>
+                <th>{t("accountType")}</th>
                 <th>{t("status")}</th>
+                <th>{t("accessProfileCol")}</th>
                 <th />
               </tr>
             </thead>
@@ -188,21 +210,34 @@ export function AdminUsersPage({ token }: { token: string }) {
                   <td>{muniLabel(u.municipality ?? undefined)}</td>
                   <td>{u.username}</td>
                   <td>{u.name || "—"}</td>
+                  <td>{t("accountTypeCommune")}</td>
                   <td>{u.is_blocked ? t("blocked") : t("active")}</td>
+                  <td className="muted" style={{ maxWidth: 140 }}>
+                    {u.access_role_template
+                      ? lang === "fr"
+                        ? u.access_role_template.name_fr
+                        : u.access_role_template.name_ar
+                      : "—"}
+                  </td>
                   <td>
                     <div className="row">
-                      <button type="button" className="btn" onClick={() => setResetUser(u)}>
-                        {t("reset")}
-                      </button>
-                      {!u.is_blocked ? (
-                        <button type="button" className="btn btnWarning" onClick={() => setBlockUser(u)}>
-                          {t("block")}
+                      <Can perm={P.manage}>
+                        <button type="button" className="btn" onClick={() => setProfileUser(u)}>
+                          {t("accessProfileEdit")}
                         </button>
-                      ) : (
-                        <button type="button" className="btn btnSuccess" onClick={() => setUnblockUser(u)}>
-                          {t("unblock")}
+                        <button type="button" className="btn" onClick={() => setResetUser(u)}>
+                          {t("reset")}
                         </button>
-                      )}
+                        {!u.is_blocked ? (
+                          <button type="button" className="btn btnWarning" onClick={() => setBlockUser(u)}>
+                            {t("block")}
+                          </button>
+                        ) : (
+                          <button type="button" className="btn btnSuccess" onClick={() => setUnblockUser(u)}>
+                            {t("unblock")}
+                          </button>
+                        )}
+                      </Can>
                     </div>
                   </td>
                 </tr>
@@ -254,12 +289,14 @@ export function AdminUsersPage({ token }: { token: string }) {
 
       {createOpen ? (
         <Modal
+          wide
           title={t("createMuniUser")}
           onClose={() => {
             setCreateOpen(false);
             setModalError(null);
             setOptUsername("");
             setOptName("");
+            setCreateProfile(emptyUserCreateProfileDraft());
           }}
           error={modalError}
         >
@@ -288,6 +325,12 @@ export function AdminUsersPage({ token }: { token: string }) {
               <div className="muted">{t("fullNameOptional")}</div>
               <input className="input" value={optName} onChange={(e) => setOptName(e.target.value)} />
             </label>
+            <UserCreateProfileFields
+              token={token}
+              accountScope="commune"
+              value={createProfile}
+              onChange={setCreateProfile}
+            />
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button type="button" className="btn" onClick={() => setCreateOpen(false)}>
                 {t("cancel")}
@@ -306,14 +349,20 @@ export function AdminUsersPage({ token }: { token: string }) {
                     const u = optUsername.trim();
                     if (!u) throw new Error(t("usernameRequired"));
                     if (!/^[A-Za-z0-9_]+$/.test(u)) throw new Error(t("errorUsernameFormat"));
+                    if (!createProfile.access_role_template_id) {
+                      setModalError(t("accessProfileTemplateRequired"));
+                      return;
+                    }
                     const res = await api.adminCreateMuniUser(token, mid, {
                       username: u,
                       name: optName.trim() || undefined,
+                      ...userCreateProfileToBody(createProfile),
                     });
                     setCreatedCreds(res.credentials);
                     setCreateOpen(false);
                     setOptUsername("");
                     setOptName("");
+                    setCreateProfile(emptyUserCreateProfileDraft());
                     snack.show(t("snackbarSaved"), "success");
                     await loadRows();
                   } catch (e: unknown) {
@@ -446,6 +495,18 @@ export function AdminUsersPage({ token }: { token: string }) {
             </div>
           </div>
         </Modal>
+      ) : null}
+
+      {profileUser ? (
+        <UserAccessProfileModal
+          open
+          token={token}
+          userId={profileUser.id}
+          displayName={profileUser.name || profileUser.username}
+          accountScope="commune"
+          onClose={() => setProfileUser(null)}
+          onSaved={() => loadRows().catch(() => {})}
+        />
       ) : null}
     </div>
   );

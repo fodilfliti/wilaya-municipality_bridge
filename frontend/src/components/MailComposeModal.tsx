@@ -16,7 +16,7 @@ export function MailComposeModal({
 }: {
   token: string
   onClose: () => void
-  onCreated: (threadIds: number[]) => void
+  onCreated: (result: { threadIds?: number[]; sendRequestId?: number }) => void
 }) {
   const { t, i18n } = useTranslation()
   const [error, setError] = useState<string | null>(null)
@@ -34,6 +34,10 @@ export function MailComposeModal({
   const [userQ, setUserQ] = useState('')
   const [userResults, setUserResults] = useState<any[]>([])
   const [selectedUsers, setSelectedUsers] = useState<number[]>([])
+
+  const [sendMode, setSendMode] = useState<'DIRECT' | 'VALIDATION'>('DIRECT')
+  const [validatorCandidates, setValidatorCandidates] = useState<{ id: number; name: string | null; username: string }[]>([])
+  const [selectedValidators, setSelectedValidators] = useState<number[]>([])
 
   const isFr = i18n.language === 'fr'
 
@@ -53,6 +57,17 @@ export function MailComposeModal({
         setMunicipalities(out)
       } catch (e: any) {
         setError(e?.message || 'Erreur')
+      }
+    })()
+  }, [token])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await api.mailValidatorCandidates(token, 'admin')
+        setValidatorCandidates(res.users || [])
+      } catch {
+        setValidatorCandidates([])
       }
     })()
   }, [token])
@@ -172,6 +187,41 @@ export function MailComposeModal({
           <RichTextEditor html={bodyHtml} onChange={setBodyHtml} placeholder={t('mailBodyPh')} />
         </div>
 
+        <div className="card cardSubtle">
+          <div className="title" style={{ marginBottom: 8 }}>{t('mailTabValidations')}</div>
+          <div className="muted" style={{ marginBottom: 8, fontSize: 12 }}>{t('mailValidationHint')}</div>
+          <div className="row" style={{ gap: 10, marginBottom: 8 }}>
+            <label className="row" style={{ gap: 8 }}>
+              <input type="radio" checked={sendMode === 'DIRECT'} onChange={() => setSendMode('DIRECT')} />
+              <span>{t('mailSendModeDirect')}</span>
+            </label>
+            <label className="row" style={{ gap: 8 }}>
+              <input type="radio" checked={sendMode === 'VALIDATION'} onChange={() => setSendMode('VALIDATION')} />
+              <span>{t('mailSendModeValidation')}</span>
+            </label>
+          </div>
+          {sendMode === 'VALIDATION' ? (
+            <div className="mailPickList">
+              {validatorCandidates.map((u) => {
+                const checked = selectedValidators.includes(u.id)
+                const label = (u.name || '').trim() || u.username
+                return (
+                  <label key={u.id} className="mailPickItem">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setSelectedValidators((prev) => (checked ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
+                      }
+                    />
+                    <span style={{ fontWeight: 700 }}>{label}</span>
+                  </label>
+                )
+              })}
+            </div>
+          ) : null}
+        </div>
+
         <div className="field">
           <div className="muted">{t('mailAttachments')}</div>
           <input
@@ -198,11 +248,20 @@ export function MailComposeModal({
               if (!b) return setError(t('mailBodyRequired'))
               if (target.type === 'COMMUNES' && !target.municipality_ids.length) return setError(t('mailTargetRequired'))
               if (target.type === 'USERS' && !target.user_ids.length) return setError(t('mailTargetRequired'))
+              if (sendMode === 'VALIDATION' && !selectedValidators.length) return setError(t('mailValidatorsRequired'))
 
               setBusy(true)
               try {
-                const res = await api.adminMailCreateThread(token, { subject: s, body_html: b, target, attachments })
-                onCreated(res.thread_ids || [])
+                const res = await api.adminMailCreateThread(token, {
+                  subject: s,
+                  body_html: b,
+                  target,
+                  attachments,
+                  send_mode: sendMode,
+                  validator_user_ids: sendMode === 'VALIDATION' ? selectedValidators : undefined,
+                })
+                if (res.send_request_id) onCreated({ sendRequestId: res.send_request_id })
+                else onCreated({ threadIds: res.thread_ids || [] })
               } catch (e: any) {
                 setError(e?.message || 'Erreur')
               } finally {
@@ -210,11 +269,10 @@ export function MailComposeModal({
               }
             }}
           >
-            {t('submit')}
+            {sendMode === 'VALIDATION' ? t('mailSendForValidation') : t('mailSendNow')}
           </button>
         </div>
       </div>
     </Modal>
   )
 }
-

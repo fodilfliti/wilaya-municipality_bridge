@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { User, Municipality } = require("../../db");
+const { User, Municipality, AccessRoleTemplate } = require("../../db");
 
 const MUNI_INCLUDE = {
   model: Municipality,
@@ -30,6 +30,19 @@ function serializeRow(row) {
     is_blocked: j.is_blocked,
     municipality: m
       ? { id: m.id, code: m.code, name_ar: m.name_ar, name_fr: m.name_fr }
+      : null,
+    job_title: j.job_title,
+    email: j.email,
+    email_hidden: Boolean(j.email_hidden),
+    access_role_template_id:
+      j.access_role_template_id != null ? Number(j.access_role_template_id) : null,
+    access_role_template: j.accessRoleTemplate
+      ? {
+          id: Number(j.accessRoleTemplate.id),
+          slug: j.accessRoleTemplate.slug,
+          name_ar: j.accessRoleTemplate.name_ar,
+          name_fr: j.accessRoleTemplate.name_fr
+        }
       : null
   };
 }
@@ -64,8 +77,27 @@ async function listWilaya({ page, pageSize, q, municipality_id }) {
 
   const { rows, count } = await User.findAndCountAll({
     where,
-    include: [MUNI_INCLUDE],
-    attributes: ["id", "username", "name", "role", "municipality_id", "is_blocked"],
+    attributes: [
+      "id",
+      "username",
+      "name",
+      "role",
+      "municipality_id",
+      "is_blocked",
+      "job_title",
+      "email",
+      "email_hidden",
+      "access_role_template_id"
+    ],
+    include: [
+      MUNI_INCLUDE,
+      {
+        model: AccessRoleTemplate,
+        as: "accessRoleTemplate",
+        attributes: ["id", "slug", "name_ar", "name_fr"],
+        required: false
+      }
+    ],
     order: [[Municipality, "code", "ASC"], ["id", "ASC"]],
     limit: ps,
     offset,

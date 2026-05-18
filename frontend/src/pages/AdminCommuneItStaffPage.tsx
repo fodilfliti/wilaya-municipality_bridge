@@ -6,11 +6,19 @@ import { Modal } from "../components/Modal";
 import { triggerBlobDownload } from "../operations/format";
 import { useSnackbar } from "../snackbar/SnackbarContext";
 import { formatApiErrorMessage } from "../snackbar/formatApiErrorMessage";
+import { Can } from "../permissions/Can";
+import { PAGE_PERMS } from "../permissions/pagePermissions";
+import { usePerm } from "../permissions/PermissionsContext";
+import { ViewOnlyBanner } from "../components/ViewOnlyBanner";
+
+const P = PAGE_PERMS.communeItStaff;
 
 type MuniOpt = { id: number; code: string; name_ar: string; name_fr: string };
 
 export function AdminCommuneItStaffPage({ token }: { token: string }) {
   const { t, i18n } = useTranslation();
+  const { can } = usePerm();
+  const canManage = can(P.manage, "manage");
   const lang = i18n.language === "fr" ? "fr" : "ar";
   const snack = useSnackbar();
   const [rows, setRows] = useState<api.CommuneItStaffRow[]>([]);
@@ -172,12 +180,16 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
           {t("itStaffAdminTitle")}
         </div>
         <div className="row">
-          <button type="button" className="btn btnPrimary" onClick={openCreate}>
-            {t("itStaffAddRow")}
-          </button>
-          <button type="button" className="btn" onClick={() => exportXlsx().catch(() => {})}>
-            {t("itStaffExportXlsx")}
-          </button>
+          <Can perm={P.manage}>
+            <button type="button" className="btn btnPrimary" onClick={openCreate}>
+              {t("itStaffAddRow")}
+            </button>
+          </Can>
+          <Can perm={P.manage}>
+            <button type="button" className="btn" onClick={() => exportXlsx().catch(() => {})}>
+              {t("itStaffExportXlsx")}
+            </button>
+          </Can>
           <button type="button" className="btn" onClick={() => loadRows().catch(() => {})}>
             {t("refresh")}
           </button>
@@ -188,6 +200,7 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
       <div className="muted" style={{ marginTop: 8, marginBottom: 14 }}>
         {t("itStaffAdminIntro")}
       </div>
+      {!canManage ? <ViewOnlyBanner /> : null}
 
       <div className="row" style={{ flexWrap: "wrap", gap: 10, marginBottom: 12, alignItems: "flex-end" }}>
         <label className="field" style={{ minWidth: 160 }}>
@@ -266,12 +279,14 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
                   <td style={{ maxWidth: 220, whiteSpace: "pre-wrap" }}>{r.programming_languages}</td>
                   <td>
                     <div className="row">
-                      <button type="button" className="btn" onClick={() => openEdit(r)}>
-                        {t("edit")}
-                      </button>
-                      <button type="button" className="btn" onClick={() => removeRow(r.id)}>
-                        {t("delete")}
-                      </button>
+                      <Can perm={P.manage}>
+                        <button type="button" className="btn" onClick={() => openEdit(r)}>
+                          {t("edit")}
+                        </button>
+                        <button type="button" className="btn" onClick={() => removeRow(r.id)}>
+                          {t("delete")}
+                        </button>
+                      </Can>
                     </div>
                   </td>
                 </tr>

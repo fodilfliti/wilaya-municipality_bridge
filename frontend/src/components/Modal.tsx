@@ -6,11 +6,13 @@ export function Modal({
   children,
   error,
   onClose,
+  wide,
 }: {
   title: string
   children: ReactNode
   error?: string | null
   onClose: () => void
+  wide?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -28,7 +30,7 @@ export function Modal({
 
   return (
     <div className="modalBackdrop" onMouseDown={onClose}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+      <div className={wide ? 'modal modalWide' : 'modal'} onMouseDown={(e) => e.stopPropagation()}>
         <div className="modalHeader">
           <div className="title">{title}</div>
           <button className="btn" onClick={onClose}>
