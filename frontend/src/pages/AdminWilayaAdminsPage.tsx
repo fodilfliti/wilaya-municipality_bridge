@@ -21,9 +21,11 @@ const P = PAGE_PERMS.wilayaAdmins;
 export function AdminWilayaAdminsPage({
   token,
   me,
+  onSelfProfileSaved,
 }: {
   token: string;
   me: api.LoginResponse["user"] & { can_create_wilaya_admins?: boolean };
+  onSelfProfileSaved?: (profile: Awaited<ReturnType<typeof api.adminUserAccessProfileGet>>) => void;
 }) {
   const { t, i18n } = useTranslation();
   const { can } = usePerm();
@@ -173,10 +175,16 @@ export function AdminWilayaAdminsPage({
                     </td>
                     <td>
                       <div className="row">
-                        <Can perm={P.manage}>
+                        {isSelf ? (
+                          <button type="button" className="btn" onClick={() => setProfileUser(u)}>
+                            {t("myProfileEdit")}
+                          </button>
+                        ) : canManage ? (
                           <button type="button" className="btn" onClick={() => setProfileUser(u)}>
                             {t("accessProfileEdit")}
                           </button>
+                        ) : null}
+                        <Can perm={P.manage}>
                           <button type="button" className="btn" onClick={() => setResetUser(u)}>
                             {t("reset")}
                           </button>
@@ -443,8 +451,13 @@ export function AdminWilayaAdminsPage({
           userId={profileUser.id}
           displayName={profileUser.name || profileUser.username}
           accountScope="wilaya"
+          isSelf={Number(profileUser.id) === Number(me.id)}
+          canEditRoles={canManage}
           onClose={() => setProfileUser(null)}
           onSaved={() => loadRows().catch(() => {})}
+          onProfileSaved={
+            Number(profileUser.id) === Number(me.id) ? onSelfProfileSaved : undefined
+          }
         />
       ) : null}
     </div>

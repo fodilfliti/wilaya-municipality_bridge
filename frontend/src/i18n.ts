@@ -214,6 +214,11 @@ const resources = {
       canCreateWilayaAdminsCol: 'إنشاء مسؤولين',
       accessProfileCol: 'ملف الوصول',
       accessProfileEdit: 'ملف الوصول',
+      myProfileEdit: 'ملفي',
+      myProfileModalTitle: 'ملفي',
+      accessProfileCurrentRole: 'الدور الحالي',
+      accessProfileSelfRolesHint:
+        'لا يمكنك تعديل صلاحياتك بنفسك. يقوم مسؤول آخر بذلك عبر «ملف الوصول» على صفك.',
       accessProfileModalTitle: 'ملف الوصول — {{name}}',
       accessProfileJobTitle: 'المسمى الوظيفي',
       accessProfileEmail: 'البريد الإلكتروني',
@@ -230,6 +235,8 @@ const resources = {
       accessProfileUseCustom: 'تخصيص الصلاحيات (تجاوز النموذج)',
       accessProfileUseCustomHint: 'الصلاحيات الفعلية تُستمد من الجدول أدناه وليس فقط من النموذج «{{template}}».',
       accessProfileUseTemplateHint: 'الصلاحيات تتبع نموذج الدور المختار أعلاه.',
+      accessProfileRolesViewOnlyHint:
+        'يمكنك تعديل المسمى والبريد فقط. لتغيير نموذج الدور أو الصلاحيات، يلزم صلاحية إدارة حسابات الولاية.',
       roleTemplatePreviewTitle: 'ما يتيحه هذا الدور',
       roleTemplatePreviewNoDesc: 'اختر «عرض التفاصيل» لمعرفة الصلاحيات بالكامل.',
       roleTemplatePreviewManage: '{{count}} صلاحية إدارة',
@@ -870,6 +877,11 @@ const resources = {
       canCreateWilayaAdminsCol: 'Créer des admins',
       accessProfileCol: 'Profil d\'accès',
       accessProfileEdit: 'Profil d\'accès',
+      myProfileEdit: 'Mon profil',
+      myProfileModalTitle: 'Mon profil',
+      accessProfileCurrentRole: 'Rôle actuel',
+      accessProfileSelfRolesHint:
+        'Vous ne pouvez pas modifier vos propres droits. Un autre administrateur le fait via « Profil d\'accès » sur votre ligne.',
       accessProfileModalTitle: 'Profil d\'accès — {{name}}',
       accessProfileJobTitle: 'Fonction',
       accessProfileEmail: 'E-mail',
@@ -887,6 +899,8 @@ const resources = {
       accessProfileUseCustomHint:
         'Les droits effectifs viennent du tableau ci-dessous, pas seulement du modèle « {{template}} ».',
       accessProfileUseTemplateHint: 'Les droits suivent le modèle de rôle sélectionné ci-dessus.',
+      accessProfileRolesViewOnlyHint:
+        'Vous pouvez modifier le poste et l’e-mail uniquement. Pour changer le modèle de rôle ou les droits, il faut la permission de gestion des comptes wilaya.',
       roleTemplatePreviewTitle: 'Ce que permet ce rôle',
       roleTemplatePreviewNoDesc: 'Utilisez « Voir toutes les permissions » pour le détail complet.',
       roleTemplatePreviewManage: '{{count}} permission(s) en gestion',

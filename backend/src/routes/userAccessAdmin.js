@@ -5,8 +5,9 @@ const userAccessAdminRouter = express.Router();
 
 userAccessAdminRouter.get("/users/:userId/access-profile", async (req, res, next) => {
   try {
-    const out = await userProfileService.getUserAccessProfile(req.params.userId);
+    const out = await userProfileService.getUserAccessProfile(req.params.userId, req.user);
     if (!out) return res.status(404).json({ error: "User not found" });
+    if (out.error) return res.status(out.status).json({ error: out.error });
     res.json(out);
   } catch (e) {
     next(e);
@@ -15,7 +16,7 @@ userAccessAdminRouter.get("/users/:userId/access-profile", async (req, res, next
 
 userAccessAdminRouter.patch("/users/:userId/access-profile", async (req, res, next) => {
   try {
-    const out = await userProfileService.updateUserAccessProfile(req.params.userId, req.body || {});
+    const out = await userProfileService.updateUserAccessProfile(req.params.userId, req.body || {}, req.user);
     if (out.error) return res.status(out.status).json({ error: out.error });
     res.json(out);
   } catch (e) {

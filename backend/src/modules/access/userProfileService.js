@@ -1,7 +1,70 @@
 const { User, Department, AccessRoleTemplate, UserPermissionOverride, sequelize } = require("../../db");
 const accessRoleService = require("./accessRoleService");
-const { resolveEffectivePermissions, loadUserWithAccess } = require("./userAccessService");
+const { resolveEffectivePermissions, loadUserWithAccess, hasPermission } = require("./userAccessService");
 const { WILAYA_ROLE_SLUGS, MUNI_ROLE_SLUGS } = require("./roleTemplateSlugs");
+
+const ROLE_FIELD_KEYS = new Set([
+  "access_role_template_id",
+  "use_custom_permissions",
+  "permission_overrides"
+]);
+
+function bodyTouchesRoleFields(body) {
+  if (!body || typeof body !== "object") return false;
+  if (body.access_role_template_id !== undefined) return true;
+  if (body.use_custom_permissions !== undefined) return true;
+  if (Array.isArray(body.permission_overrides)) return true;
+  return false;
+}
+
+function manageKeyForTargetRole(role) {
+  return role === "SUPER_ADMIN" ? "organization.wilaya_admins.manage" : "organization.commune_agents.manage";
+}
+
+async function actorCanManageUserAccess(actor, targetRole) {
+  if (!actor) return false;
+  if (Boolean(actor.can_manage_access_roles)) return true;
+  const map = await resolveEffectivePermissions(actor);
+  if (hasPermission(map, "organization.access_roles.manage", "manage")) return true;
+  return hasPermission(map, manageKeyForTargetRole(targetRole), "manage");
+}
+
+async function assertCanReadAccessProfile(actor, targetUserId) {
+  if (!actor?.id) return { error: "Unauthorized", status: 401 };
+  if (Number(actor.id) === Number(targetUserId)) return {};
+
+  const target = await User.findByPk(targetUserId, { attributes: ["id", "role"] });
+  if (!target) return { error: "User not found", status: 404 };
+
+  const map = await resolveEffectivePermissions(actor);
+  const viewKey =
+    target.role === "SUPER_ADMIN" ? "organization.wilaya_admins.view" : "organization.commune_agents.view";
+  if (hasPermission(map, viewKey, "view")) return {};
+  if (await actorCanManageUserAccess(actor, target.role)) return {};
+  return { error: "Forbidden", status: 403 };
+}
+
+async function assertCanWriteAccessProfile(actor, targetUserId, body) {
+  if (!actor?.id) return { error: "Unauthorized", status: 401 };
+
+  const target = await User.findByPk(targetUserId, { attributes: ["id", "role"] });
+  if (!target) return { error: "User not found", status: 404 };
+
+  const isSelf = Number(actor.id) === Number(targetUserId);
+  const touchesRoles = bodyTouchesRoleFields(body);
+
+  if (isSelf) {
+    if (touchesRoles) {
+      return { error: "Cannot change your own access role or permissions", status: 403 };
+    }
+    return {};
+  }
+
+  if (!(await actorCanManageUserAccess(actor, target.role))) {
+    return { error: "Forbidden", status: 403 };
+  }
+  return {};
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -78,7 +141,10 @@ async function defaultTemplateIdForRole(accountRole) {
   return t?.id ?? null;
 }
 
-async function getUserAccessProfile(userId) {
+async function getUserAccessProfile(userId, actor) {
+  const denied = await assertCanReadAccessProfile(actor, userId);
+  if (denied.error) return denied;
+
   const user = await User.findByPk(userId, {
     include: [
       { model: Department, as: "department", attributes: ["id", "name_ar", "name_fr"] },
@@ -103,17 +169,30 @@ async function getUserAccessProfile(userId) {
   };
 }
 
-async function updateUserAccessProfile(userId, body) {
+async function updateUserAccessProfile(userId, body, actor) {
+  const denied = await assertCanWriteAccessProfile(actor, userId, body || {});
+  if (denied.error) return denied;
+
   const user = await User.findByPk(userId);
   if (!user) return { error: "User not found", status: 404 };
 
+  const isSelf = Number(actor.id) === Number(userId);
+  const canEditRoles = !isSelf && (await actorCanManageUserAccess(actor, user.role));
+  const payload = { ...(body || {}) };
+  if (!canEditRoles) {
+    for (const key of ROLE_FIELD_KEYS) delete payload[key];
+  }
+
   const updates = {};
 
-  if (body.job_title !== undefined) {
-    updates.job_title = body.job_title != null && String(body.job_title).trim() ? String(body.job_title).trim().slice(0, 120) : null;
+  if (payload.job_title !== undefined) {
+    updates.job_title =
+      payload.job_title != null && String(payload.job_title).trim()
+        ? String(payload.job_title).trim().slice(0, 120)
+        : null;
   }
-  if (body.department_id !== undefined) {
-    const did = body.department_id;
+  if (payload.department_id !== undefined) {
+    const did = payload.department_id;
     if (did === null || did === "") updates.department_id = null;
     else {
       const n = Number(did);
@@ -121,15 +200,15 @@ async function updateUserAccessProfile(userId, body) {
       updates.department_id = n;
     }
   }
-  if (body.email !== undefined) {
-    const em = body.email != null ? String(body.email).trim() : "";
+  if (payload.email !== undefined) {
+    const em = payload.email != null ? String(payload.email).trim() : "";
     updates.email = em ? em.slice(0, 255) : null;
     if (updates.email && !EMAIL_RE.test(updates.email)) return { error: "Invalid email format", status: 400 };
   }
-  if (body.email_hidden !== undefined) updates.email_hidden = Boolean(body.email_hidden);
+  if (payload.email_hidden !== undefined) updates.email_hidden = Boolean(payload.email_hidden);
 
-  if (body.access_role_template_id !== undefined) {
-    const tid = Number(body.access_role_template_id);
+  if (payload.access_role_template_id !== undefined) {
+    const tid = Number(payload.access_role_template_id);
     if (!Number.isFinite(tid) || tid < 1) return { error: "access_role_template_id is required", status: 400 };
     const tpl = await AccessRoleTemplate.findByPk(tid);
     if (!tpl || !tpl.is_active) return { error: "Role template not found", status: 404 };
@@ -138,21 +217,26 @@ async function updateUserAccessProfile(userId, body) {
       return { error: "Role template scope does not match user account type", status: 400 };
     }
     updates.access_role_template_id = tid;
+  } else if (canEditRoles && !user.access_role_template_id) {
+    const defaultId = await defaultTemplateIdForRole(user.role);
+    if (defaultId) updates.access_role_template_id = defaultId;
   }
 
-  if (body.use_custom_permissions !== undefined) {
-    updates.use_custom_permissions = Boolean(body.use_custom_permissions);
+  if (payload.use_custom_permissions !== undefined) {
+    updates.use_custom_permissions = Boolean(payload.use_custom_permissions);
   }
 
   return sequelize.transaction(async (transaction) => {
     if (Object.keys(updates).length) await user.update(updates, { transaction });
 
     const useCustom =
-      body.use_custom_permissions !== undefined ? Boolean(body.use_custom_permissions) : user.use_custom_permissions;
+      payload.use_custom_permissions !== undefined
+        ? Boolean(payload.use_custom_permissions)
+        : user.use_custom_permissions;
 
-    if (useCustom && Array.isArray(body.permission_overrides)) {
+    if (canEditRoles && useCustom && Array.isArray(payload.permission_overrides)) {
       await UserPermissionOverride.destroy({ where: { user_id: userId }, transaction });
-      const rows = body.permission_overrides
+      const rows = payload.permission_overrides
         .filter((p) => p?.permission_key && p?.access_level)
         .map((p) => ({
           user_id: userId,
@@ -160,11 +244,11 @@ async function updateUserAccessProfile(userId, body) {
           access_level: p.access_level
         }));
       if (rows.length) await UserPermissionOverride.bulkCreate(rows, { transaction });
-    } else if (body.use_custom_permissions === false) {
+    } else if (canEditRoles && payload.use_custom_permissions === false) {
       await UserPermissionOverride.destroy({ where: { user_id: userId }, transaction });
     }
 
-    return { profile: await getUserAccessProfile(userId) };
+    return { profile: await getUserAccessProfile(userId, actor) };
   });
 }
 
@@ -193,5 +277,6 @@ module.exports = {
   defaultTemplateIdForRole,
   getUserAccessProfile,
   updateUserAccessProfile,
-  enrichSessionUser
+  enrichSessionUser,
+  actorCanManageUserAccess
 };

@@ -81,6 +81,25 @@ function App() {
     document.documentElement.dir = dir;
   }, [dir, lang]);
 
+  const mergeSessionFromAccessProfile = useCallback(
+    (profile: Awaited<ReturnType<typeof api.adminUserAccessProfileGet>>) => {
+      setMe((prev) => {
+        if (!prev || Number(prev.id) !== Number(profile.user.id)) return prev;
+        const next = {
+          ...prev,
+          can_create_wilaya_admins: profile.user.can_create_wilaya_admins,
+          can_manage_access_roles: profile.user.can_manage_access_roles,
+          use_custom_permissions: profile.user.use_custom_permissions,
+          access_role_template_id: profile.user.access_role_template_id,
+          effective_permissions: profile.effective_permissions,
+        };
+        localStorage.setItem("me", JSON.stringify(next));
+        return next;
+      });
+    },
+    [],
+  );
+
   const logout = useCallback(() => {
     setToken(null);
     setMe(null);
@@ -332,7 +351,11 @@ function App() {
                   path="/wilaya-admins"
                   element={
                     <RequirePermission>
-                      <AdminWilayaAdminsPage token={token!} me={me!} />
+                      <AdminWilayaAdminsPage
+                        token={token!}
+                        me={me!}
+                        onSelfProfileSaved={mergeSessionFromAccessProfile}
+                      />
                     </RequirePermission>
                   }
                 />

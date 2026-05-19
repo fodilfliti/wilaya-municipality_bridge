@@ -25,7 +25,7 @@
 | **`MUNI_ADMIN`** | Commune permission keys only (+ `both`). Scoped to own `municipality_id` regardless of template. |
 | **Privileged profile admin** | Create/edit **custom** role templates if `can_manage_access_roles = true` **or** effective `organization.access_roles.manage = manage`. Cannot edit **system** template permission rows via API (slug enum). |
 | **Wilaya admin creation** | `can_create_wilaya_admins` (existing flag) — separate from access roles; still required for `POST /admin/wilaya-admins`. |
-| **Self-service safety** | User cannot **block** their own account (`POST .../block` returns 400). |
+| **Self-service safety** | User cannot **block** their own account (`POST .../block` returns 400). Own row: **Mon profil** — edit job title / email only; **cannot** change own role template or permission overrides (API **403**). Another admin with `organization.wilaya_admins.manage` edits others via **Profil d'accès**. Session `effective_permissions` refresh after self contact save. |
 
 ### Data model
 
@@ -253,7 +253,7 @@ When adding a new module, **add keys here and in `permissionCatalog.js`** before
 
 #### Account list pages (organization)
 
-- `/wilaya-admins` — columns: username, name, account type, status, can create admins, actions (reset; block hidden for self).
+- `/wilaya-admins` — own row: **Mon profil** (contact only); other rows: **Profil d'accès** when `organization.wilaya_admins.manage`; reset/block require manage; block hidden for self.
 - `/users` — commune agents + account type column + commune filter.
 
 #### Phase 2 screens (planned)
