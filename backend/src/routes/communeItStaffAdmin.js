@@ -1,5 +1,21 @@
 const express = require("express");
 const communeItStaffService = require("../modules/communeItStaff/communeItStaffService");
+const { validateBody } = require("../middleware/validateBody");
+const {
+  communeItStaffAdminCreateSchema,
+  communeItStaffBodySchema
+} = require("../validation/schemas/communeItStaff");
+
+function sendServiceError(res, out, req) {
+  if (out.fieldErrors) {
+    return res.status(out.status || 400).json({
+      error: "VALIDATION_ERROR",
+      fieldErrors: out.fieldErrors,
+      requestId: req.requestId
+    });
+  }
+  return res.status(out.status || 400).json({ error: out.error, requestId: req.requestId });
+}
 const { buildWilayaExportBuffer } = require("../services/communeItStaffExcelExport");
 const {
   buildCommuneItStaffWilayaXlsxFilename,
@@ -52,10 +68,10 @@ communeItStaffAdminRouter.get("/commune-it-staff/:id", async (req, res, next) =>
   }
 });
 
-communeItStaffAdminRouter.post("/commune-it-staff", async (req, res, next) => {
+communeItStaffAdminRouter.post("/commune-it-staff", validateBody(communeItStaffAdminCreateSchema), async (req, res, next) => {
   try {
-    const out = await communeItStaffService.createWilaya(req.body || {});
-    if (out.error) return res.status(out.status).json({ error: out.error });
+    const out = await communeItStaffService.createWilaya(req.validatedBody || {});
+    if (out.error) return sendServiceError(res, out, req);
     await audit(req.user.id, "COMMUNE_IT_STAFF_CREATE", { id: out.row.id, municipality_id: out.row.municipality_id }, { req });
     res.status(201).json(out);
   } catch (e) {
@@ -63,10 +79,13 @@ communeItStaffAdminRouter.post("/commune-it-staff", async (req, res, next) => {
   }
 });
 
-communeItStaffAdminRouter.patch("/commune-it-staff/:id", async (req, res, next) => {
+communeItStaffAdminRouter.patch(
+  "/commune-it-staff/:id",
+  validateBody(communeItStaffBodySchema.partial()),
+  async (req, res, next) => {
   try {
-    const out = await communeItStaffService.updateWilaya(req.params.id, req.body || {});
-    if (out.error) return res.status(out.status).json({ error: out.error });
+    const out = await communeItStaffService.updateWilaya(req.params.id, req.validatedBody || {});
+    if (out.error) return sendServiceError(res, out, req);
     await audit(req.user.id, "COMMUNE_IT_STAFF_UPDATE", { id: out.row.id, municipality_id: out.row.municipality_id }, { req });
     res.json(out);
   } catch (e) {

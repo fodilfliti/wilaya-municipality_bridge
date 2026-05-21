@@ -38,7 +38,6 @@ function labels(locale) {
     annex: fr ? "Nom annexe" : "اسم الملحق",
     ipAuth: fr ? "IP autorisée" : "IP مصرّح",
     year: fr ? "Année autorisation" : "سنة التفويض",
-    ipCount: fr ? "Nombre IP autorisées" : "عدد IP مصرّح",
     pcUsed: fr ? "PC utilisé" : "حاسوب مستخدم",
     ipReq: fr ? "IP demandée" : "IP مطلوب",
     rncStatus: fr ? "Statut autorisation" : "حالة التفويض",
@@ -70,17 +69,7 @@ async function buildAnnexRncWilayaExportBuffer(payload, locale) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(L.sheetData, { views: [{ rightToLeft: locale === "ar" }] });
 
-  const headers = [
-    L.code,
-    L.commune,
-    L.annex,
-    L.ipAuth,
-    L.year,
-    L.ipCount,
-    L.pcUsed,
-    L.ipReq,
-    L.rncStatus
-  ];
+  const headers = [L.code, L.commune, L.annex, L.ipAuth, L.year, L.pcUsed, L.ipReq, L.rncStatus];
   const colCount = headers.length;
   const headerRow = ws.addRow(headers);
   headerRow.height = 22;
@@ -96,7 +85,7 @@ async function buildAnnexRncWilayaExportBuffer(payload, locale) {
     const list = block.lines || [];
     const cname = communeName(m, locale);
     if (!list.length) {
-      const row = ws.addRow([m.code, cname, "—", "—", "—", "—", "—", "—", "—"]);
+      const row = ws.addRow([m.code, cname, "—", "—", "—", "—", "—", "—"]);
       styleDataRow(row, { rncStatus: "none", colCount });
       continue;
     }
@@ -107,7 +96,6 @@ async function buildAnnexRncWilayaExportBuffer(payload, locale) {
         line.annex_name || "—",
         line.ip_authorized || "—",
         line.authorization_year || "—",
-        line.authorized_ip_count || "—",
         line.pc_used || "—",
         line.ip_requested || "—",
         rncStatusLabel(line.rnc_auth_status, locale)
@@ -116,17 +104,7 @@ async function buildAnnexRncWilayaExportBuffer(payload, locale) {
     }
   }
 
-  ws.columns = [
-    { width: 12 },
-    { width: 22 },
-    { width: 22 },
-    { width: 16 },
-    { width: 14 },
-    { width: 14 },
-    { width: 18 },
-    { width: 16 },
-    { width: 16 }
-  ];
+  ws.columns = [{ width: 12 }, { width: 22 }, { width: 22 }, { width: 16 }, { width: 14 }, { width: 18 }, { width: 16 }, { width: 16 }];
 
   const st = wb.addWorksheet(L.sheetStats, { views: [{ rightToLeft: locale === "ar" }] });
   const an = payload.analytics || {};
@@ -155,7 +133,7 @@ async function buildAnnexRncMuniExportBuffer(muni, payload, locale) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(L.sheetData, { views: [{ rightToLeft: locale === "ar" }] });
   const cname = communeName(muni, locale);
-  const headers = [L.code, L.commune, L.annex, L.ipAuth, L.year, L.ipCount, L.pcUsed, L.ipReq, L.rncStatus];
+  const headers = [L.code, L.commune, L.annex, L.ipAuth, L.year, L.pcUsed, L.ipReq, L.rncStatus];
   const colCount = headers.length;
   const headerRow = ws.addRow(headers);
   headerRow.height = 22;
@@ -168,7 +146,7 @@ async function buildAnnexRncMuniExportBuffer(muni, payload, locale) {
 
   const list = payload?.lines || [];
   if (!list.length) {
-    const row = ws.addRow([muni.code, cname, "—", "—", "—", "—", "—", "—", "—"]);
+    const row = ws.addRow([muni.code, cname, "—", "—", "—", "—", "—", "—"]);
     styleDataRow(row, { rncStatus: "none", colCount });
   } else {
     for (const line of list) {
@@ -178,7 +156,6 @@ async function buildAnnexRncMuniExportBuffer(muni, payload, locale) {
         line.annex_name || "—",
         line.ip_authorized || "—",
         line.authorization_year || "—",
-        line.authorized_ip_count || "—",
         line.pc_used || "—",
         line.ip_requested || "—",
         rncStatusLabel(line.rnc_auth_status, locale)
@@ -187,17 +164,7 @@ async function buildAnnexRncMuniExportBuffer(muni, payload, locale) {
     }
   }
 
-  ws.columns = [
-    { width: 12 },
-    { width: 22 },
-    { width: 22 },
-    { width: 16 },
-    { width: 14 },
-    { width: 14 },
-    { width: 18 },
-    { width: 16 },
-    { width: 16 }
-  ];
+  ws.columns = [{ width: 12 }, { width: 22 }, { width: 22 }, { width: 16 }, { width: 14 }, { width: 18 }, { width: 16 }, { width: 16 }];
 
   return wb.xlsx.writeBuffer();
 }

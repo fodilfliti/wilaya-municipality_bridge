@@ -51,7 +51,10 @@ const PERMISSIONS = [
   { key: "commune_it_staff.manage", scope: "both", module: "commune_it_staff", label_fr: "IT commune — gérer", label_ar: "IT البلدية — إدارة" },
   { key: "commune_it_staff.export", scope: "wilaya", module: "commune_it_staff", label_fr: "IT commune — exporter", label_ar: "IT البلدية — تصدير" },
 
-  { key: "users.email.view_others", scope: "wilaya", module: "organization", label_fr: "Voir l'e-mail des autres comptes", label_ar: "عرض بريد الحسابات الأخرى" }
+  { key: "users.email.view_others", scope: "wilaya", module: "organization", label_fr: "Voir l'e-mail des autres comptes", label_ar: "عرض بريد الحسابات الأخرى" },
+
+  { key: "announcements.view", scope: "both", module: "announcements", label_fr: "Annonces — consulter", label_ar: "الإعلانات — عرض" },
+  { key: "announcements.manage", scope: "wilaya", module: "announcements", label_fr: "Annonces — gérer", label_ar: "الإعلانات — إدارة" }
 ];
 
 const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);

@@ -65,7 +65,8 @@
 
 - Hub: card under **« État principal »**; route `/etat-principale/backup-servers` (admin vs commune page by role).
 - Wilaya table: colour booleans, warm background for pending transmission, highlight non-empty **anomalie**; donuts for submission and boolean distributions; **Refresh** + **Export**.
-- Commune: status banner (transmitted / pending); multi-line server cards + add line + save + optional transmit + export.
+- Commune: status banner (transmitted / pending); multi-line server cards + add line + save + optional transmit + export. Line fields use a **responsive grid** (1→4 columns by viewport width); forms use full page width (no narrow max-width column).
+- Wilaya edit modal: **wide état modal** (`modalEtat`) — scrollable line list + **sticky toolbar** (add line, save, close always visible without scrolling to the bottom).
 - **Wilaya filter:** `?municipalityId=` on list + export; UI banner when active.
 - **Retour:** `BackButton` (history), not hard link to hub.
 

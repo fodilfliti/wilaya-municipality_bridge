@@ -136,7 +136,7 @@ export function MuniBackupServersPage({ token }: { token: string }) {
         <div className="row">
           <button
             type="button"
-            className="btn"
+            className="btn btnExcel"
             onClick={() =>
               exportXlsx().catch((e: unknown) => {
                 const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
@@ -179,7 +179,7 @@ export function MuniBackupServersPage({ token }: { token: string }) {
               </div>
             </div>
             <div className="etatMuniLineFields">
-              <label className="row etatMuniFieldFull" style={{ gap: 10, alignItems: 'center' }}>
+              <label className="etatMuniFieldCheck">
                 <input
                   type="checkbox"
                   checked={line.existe}
@@ -196,7 +196,7 @@ export function MuniBackupServersPage({ token }: { token: string }) {
                   placeholder={t('backupServersOsTypeHint')}
                 />
               </label>
-              <label className="row" style={{ gap: 10, alignItems: 'center' }}>
+              <label className="etatMuniFieldCheck">
                 <input
                   type="checkbox"
                   checked={line.configured}
@@ -213,7 +213,7 @@ export function MuniBackupServersPage({ token }: { token: string }) {
                   placeholder="Windows Server …"
                 />
               </label>
-              <label className="row" style={{ gap: 10, alignItems: 'center' }}>
+              <label className="etatMuniFieldCheck">
                 <input
                   type="checkbox"
                   checked={line.os_active}
@@ -225,7 +225,7 @@ export function MuniBackupServersPage({ token }: { token: string }) {
                 <div className="muted">{t('backupServersColAnomalie')}</div>
                 <textarea
                   className="input"
-                  rows={3}
+                  rows={2}
                   value={line.anomalie || ''}
                   onChange={(e) => updateLine(i, { anomalie: e.target.value })}
                 />

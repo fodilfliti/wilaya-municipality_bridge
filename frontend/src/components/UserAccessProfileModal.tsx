@@ -6,6 +6,7 @@ import { PermissionMatrixEditor, type PermissionCatalogEntry } from './Permissio
 import { RoleTemplatePermissionsPreview } from './RoleTemplatePermissionsPreview'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
+import { FormErrorBlock } from './FormErrorBlock'
 
 const DEFAULT_TEMPLATE_SLUG: Record<'wilaya' | 'commune', string> = {
   wilaya: 'WILAYA_FULL_ADMIN',
@@ -60,6 +61,7 @@ export function UserAccessProfileModal({
   const [useCustom, setUseCustom] = useState(false)
   const [permLevels, setPermLevels] = useState<Record<string, api.AccessLevel>>({})
   const [baselineLevels, setBaselineLevels] = useState<Record<string, api.AccessLevel>>({})
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const rolesEditable = canEditRoles && !isSelf
 
@@ -123,8 +125,9 @@ export function UserAccessProfileModal({
     try {
       const next = await applyTemplateLevels(tid, catalog)
       if (!useCustom) setPermLevels(next)
-    } catch {
-      /* ignore */
+    } catch (e: unknown) {
+      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'VALIDATION_ERROR')
+      snack.show(formatApiErrorMessage(raw, t), 'error')
     }
   }
 
@@ -134,8 +137,11 @@ export function UserAccessProfileModal({
   }
 
   async function save() {
+    setSaveError(null)
     if (rolesEditable && !templateId) {
-      snack.show(t('accessProfileTemplateRequired'), 'error')
+      const msg = t('accessProfileTemplateRequired')
+      setSaveError(msg)
+      snack.show(msg, 'error')
       return
     }
     setSaving(true)
@@ -157,8 +163,10 @@ export function UserAccessProfileModal({
       onSaved()
       onClose()
     } catch (e: unknown) {
-      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
-      snack.show(formatApiErrorMessage(raw, t), 'error')
+      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'VALIDATION_ERROR')
+      const msg = formatApiErrorMessage(raw, t)
+      setSaveError(msg)
+      snack.show(msg, 'error')
     } finally {
       setSaving(false)
     }
@@ -222,7 +230,7 @@ export function UserAccessProfileModal({
               className="input"
               value={templateId}
               disabled={!rolesEditable || saving}
-              onChange={(e) => onTemplateChange(e.target.value ? Number(e.target.value) : '').catch(() => {})}
+              onChange={(e) => void onTemplateChange(e.target.value ? Number(e.target.value) : '')}
             >
               <option value="">{t('select')}</option>
               {templates.map((tpl) => (
@@ -283,11 +291,12 @@ export function UserAccessProfileModal({
             </>
           ) : null}
 
+          <FormErrorBlock message={saveError} />
           <div className="row" style={{ marginTop: 16, justifyContent: 'flex-end', gap: 8 }}>
             <button type="button" className="btn" onClick={onClose} disabled={saving}>
               {t('cancel')}
             </button>
-            <button type="button" className="btn btnPrimary" onClick={() => save().catch(() => {})} disabled={saving}>
+            <button type="button" className="btn btnPrimary" onClick={() => void save()} disabled={saving}>
               {t('save')}
             </button>
           </div>

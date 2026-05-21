@@ -40,6 +40,10 @@
   - Details
   - Create/edit (modal or page)
 - Key UX requirements (RTL, French toggle, evidence/receipts, etc.)
+- **Form validation** (required for every create/edit screen — see `spec/CORE.md` § Form validation):
+  - Zod schema path (`frontend/src/validation/schemas/...`) and field → i18n keys
+  - Per-field errors, global block above Save, snackbar on block/API failure
+  - Matching server `validateBody` + `fieldErrors` on write endpoints
 
 ### Audit events (minimum)
 - Stable action types and required `details` payload fields

@@ -150,7 +150,7 @@ export function MuniOperationViewPage({ token }: { token: string }) {
             </Link>
           ) : null}
           {!showEmptySheetCTA ? (
-            <button type="button" className="btn" onClick={() => exportXlsx()}>
+            <button type="button" className="btn btnExcel" onClick={() => exportXlsx()}>
               {t("operationsExportCommuneSheet")}
             </button>
           ) : null}

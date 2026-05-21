@@ -80,16 +80,11 @@ export function RncAuthAdminSection({
   children: ReactNode
 }) {
   return (
-    <div
-      className="card cardSubtle"
-      style={{
-        padding: 12,
-        background: 'rgba(241,245,249,0.55)',
-        border: '1px solid rgba(148,163,184,0.25)',
-      }}
-    >
+    <div className="etatMuniRncBlock">
       <RncAuthFieldLabel label={label} status={status} />
-      <div className="grid" style={{ gap: 10, marginTop: 8 }}>{children}</div>
+      <div className="etatMuniLineFields" style={{ marginTop: 8 }}>
+        {children}
+      </div>
     </div>
   )
 }

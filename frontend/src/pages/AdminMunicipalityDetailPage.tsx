@@ -13,6 +13,10 @@ import {
 } from "../components/MuniDetailSectionChip";
 import { useSnackbar } from "../snackbar/SnackbarContext";
 import { formatApiErrorMessage } from "../snackbar/formatApiErrorMessage";
+import { FormErrorBlock, FieldErrorText } from "../components/FormErrorBlock";
+import { annexFormSchema } from "../validation/schemas/annex";
+import { useZodForm } from "../validation/useZodForm";
+import { applyApiErrorToForm } from "../validation/applyApiError";
 import { Can } from "../permissions/Can";
 import { PAGE_PERMS } from "../permissions/pagePermissions";
 
@@ -31,6 +35,7 @@ function parseTab(raw: string | null): MuniDetailSection {
 export function AdminMunicipalityDetailPage({ token }: { token: string }) {
   const { t } = useTranslation();
   const snack = useSnackbar();
+  const annexForm = useZodForm(annexFormSchema);
   const params = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const municipalityId = Number(params.municipalityId);
@@ -139,6 +144,7 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
     setAnnexStatus("NEW_NOT_YET_ACTIVE");
     setAnnexVillePosition("INSIDE_VILLE");
     setAnnexModalError(null);
+    annexForm.clearErrors();
   }
 
   function openAnnexCreate() {
@@ -157,12 +163,9 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
   }
 
   async function saveAnnexModal() {
-    const name = annexName.trim();
-    if (!name) {
-      setAnnexModalError(t("annexNameRequired"));
-      return;
-    }
     setAnnexModalError(null);
+    if (!annexForm.validate({ name: annexName }, t, ["field-name"])) return;
+    const name = annexName.trim();
     try {
       const body = {
         name,
@@ -180,8 +183,11 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
       await loadCore();
       snack.show(t("snackbarSaved"), "success");
     } catch (e: unknown) {
-      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
-      setAnnexModalError(formatApiErrorMessage(raw, t));
+      applyApiErrorToForm(e, t, {
+        setFormError: setAnnexModalError,
+        setFieldErrors: annexForm.setFieldErrors,
+        snackShow: (msg) => snack.show(msg, "error"),
+      });
     }
   }
 
@@ -506,7 +512,16 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
           <div className="grid" style={{ gap: 10 }}>
             <label className="field">
               <div className="muted">{t("annexName")}</div>
-              <input className="input" value={annexName} onChange={(e) => setAnnexName(e.target.value)} />
+              <input
+                id="field-name"
+                className={annexForm.hasFieldError("name") ? "input inputInvalid" : "input"}
+                value={annexName}
+                onChange={(e) => {
+                  setAnnexName(e.target.value);
+                  annexForm.clearField("name");
+                }}
+              />
+              <FieldErrorText message={annexForm.fieldErrorText("name", t)} />
             </label>
             <label className="field">
               <div className="muted">{t("annexPhones")}</div>
@@ -543,7 +558,8 @@ export function AdminMunicipalityDetailPage({ token }: { token: string }) {
               >
                 {t("cancel")}
               </button>
-              <button type="button" className="btn btnPrimary" onClick={() => saveAnnexModal().catch(() => {})}>
+              <FormErrorBlock message={annexForm.formError} />
+              <button type="button" className="btn btnPrimary" onClick={() => void saveAnnexModal()}>
                 {t("submit")}
               </button>
             </div>

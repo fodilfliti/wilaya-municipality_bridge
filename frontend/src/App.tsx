@@ -31,6 +31,8 @@ import { MuniOperationsListPage } from "./pages/MuniOperationsListPage";
 import { MuniOperationSheetPage } from "./pages/MuniOperationSheetPage";
 import { MuniOperationViewPage } from "./pages/MuniOperationViewPage";
 import { AdminCommuneItStaffPage } from "./pages/AdminCommuneItStaffPage";
+import { AdminAnnouncementsPage } from "./pages/AdminAnnouncementsPage";
+import { AnnouncementsProvider } from "./announcements/AnnouncementsContext";
 import { MuniCommuneItStaffPage } from "./pages/MuniCommuneItStaffPage";
 import { AdminBackupServersPage } from "./pages/AdminBackupServersPage";
 import { MuniBackupServersPage } from "./pages/MuniBackupServersPage";
@@ -41,8 +43,24 @@ import { AdminAccessRolesPage } from "./pages/AdminAccessRolesPage";
 import { MuniAnnexRncAuthorizationsPage } from "./pages/MuniAnnexRncAuthorizationsPage";
 import { MuniAnnexesPage } from "./pages/MuniAnnexesPage";
 import { TopbarProfileMenu } from "./components/TopbarProfileMenu";
-import { PermissionsProvider } from "./permissions/PermissionsContext";
+import { PermissionsProvider, usePerm } from "./permissions/PermissionsContext";
 import { RequirePermission } from "./permissions/RequirePermission";
+
+function MuniAnnouncementsShell({
+  token,
+  children,
+}: {
+  token: string;
+  children: React.ReactNode;
+}) {
+  const { can } = usePerm();
+  const enabled = can("announcements.view", "view");
+  return (
+    <AnnouncementsProvider token={token} enabled={enabled}>
+      {children}
+    </AnnouncementsProvider>
+  );
+}
 
 function App() {
   const { t, i18n } = useTranslation();
@@ -408,6 +426,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="/announcements"
+                  element={
+                    <RequirePermission>
+                      <AdminAnnouncementsPage token={token!} />
+                    </RequirePermission>
+                  }
+                />
+                <Route
                   path="/etat-principale/backup-servers"
                   element={
                     <RequirePermission>
@@ -465,6 +491,7 @@ function App() {
                 />
               </>
             ) : (
+              <MuniAnnouncementsShell token={token!}>
               <>
                 <Route path="/" element={<MuniHubPage />} />
                 <Route
@@ -530,6 +557,7 @@ function App() {
                 />
                 <Route path="*" element={<MuniHubPage />} />
               </>
+              </MuniAnnouncementsShell>
             )}
             </Routes>
           </PermissionsProvider>

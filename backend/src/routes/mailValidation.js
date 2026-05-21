@@ -80,6 +80,13 @@ function createMailValidationRouter({ uploadMailAttachments }) {
     try {
       const id = Number(req.params.id);
       const body_html = String(req.body?.body_html || "").trim();
+      if (!body_html) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          fieldErrors: { body_html: "mailBodyRequired" },
+          requestId: req.requestId
+        });
+      }
       await mailSendRequestService.addDiscussion(req, id, body_html);
       const loaded = await mailSendRequestService.loadSendRequestForUser(req, id);
       res.json({
@@ -109,6 +116,13 @@ function createMailValidationRouter({ uploadMailAttachments }) {
     try {
       const id = Number(req.params.id);
       const feedback_html = String(req.body?.feedback_html || "").trim();
+      if (!feedback_html) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          fieldErrors: { feedback_html: "mailValidationFeedbackRequired" },
+          requestId: req.requestId
+        });
+      }
       await mailSendRequestService.rejectSendRequest(req, id, feedback_html);
       const loaded = await mailSendRequestService.loadSendRequestForUser(req, id);
       res.json({

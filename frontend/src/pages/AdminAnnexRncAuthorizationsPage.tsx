@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as api from '../api'
-import { Modal } from '../components/Modal'
+import { EtatPrincipaleEditModal } from '../etatPrincipale/EtatPrincipaleEditModal'
 import { triggerBlobDownload } from '../operations/format'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
@@ -147,7 +147,6 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
         municipality_annex_id: l.municipality_annex_id,
         ip_authorized: l.ip_authorized?.trim() || null,
         authorization_year: l.authorization_year?.trim() || null,
-        authorized_ip_count: l.authorized_ip_count?.trim() || null,
         pc_used: l.pc_used?.trim() || null,
         ip_requested: l.ip_requested?.trim() || null,
         rnc_auth_status: l.rnc_auth_status,
@@ -175,20 +174,41 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
   return (
     <div className="card">
       {edit ? (
-        <Modal
+        <EtatPrincipaleEditModal
           title={t('annexRncAdminEditTitle', { code: edit.municipality.code })}
           error={modalError}
           onClose={() => {
             if (!saving) setEdit(null)
           }}
+          toolbar={
+            annexes.length ? (
+              <>
+                <button type="button" className="btn" disabled={saving} onClick={() => addLine()}>
+                  {t('annexRncAddLine')}
+                </button>
+                <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn" disabled={saving} onClick={() => setEdit(null)}>
+                    {t('close')}
+                  </button>
+                  <button type="button" className="btn btnPrimary" disabled={saving} onClick={() => saveEdit()}>
+                    {t('save')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="row" style={{ justifyContent: 'flex-end', width: '100%' }}>
+                <button type="button" className="btn" disabled={saving} onClick={() => setEdit(null)}>
+                  {t('close')}
+                </button>
+              </div>
+            )
+          }
         >
-          <div style={{ maxWidth: 560, maxHeight: '70vh', overflowY: 'auto' }}>
             {!annexes.length ? (
               <p className="muted">{t('annexRncNoAnnexes')}</p>
             ) : (
-              <div className="grid" style={{ gap: 14 }}>
-                {lines.map((line, i) => (
-                  <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle" style={{ padding: 12 }}>
+                lines.map((line, i) => (
+                  <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle etatModalLineCard">
                     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <div style={{ fontWeight: 700 }}>{t('backupServersLineTitle', { n: i + 1 })}</div>
                       <div className="row" style={{ gap: 8, alignItems: 'center' }}>
@@ -203,7 +223,7 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
                         </button>
                       </div>
                     </div>
-                    <div className="grid" style={{ gap: 10 }}>
+                    <div className="etatMuniLineFields">
                       <label className="field">
                         <div className="muted">{t('annexRncColAnnex')}</div>
                         <select
@@ -226,15 +246,6 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
                           value={line.authorization_year || ''}
                           disabled={saving}
                           onChange={(e) => updateLine(i, { authorization_year: e.target.value })}
-                        />
-                      </label>
-                      <label className="field">
-                        <div className="muted">{t('annexRncColIpCount')}</div>
-                        <input
-                          className="input"
-                          value={line.authorized_ip_count || ''}
-                          disabled={saving}
-                          onChange={(e) => updateLine(i, { authorized_ip_count: e.target.value })}
                         />
                       </label>
                       <label className="field">
@@ -273,22 +284,9 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
                       </RncAuthAdminSection>
                     </div>
                   </div>
-                ))}
-                <button type="button" className="btn" disabled={saving} onClick={() => addLine()}>
-                  {t('annexRncAddLine')}
-                </button>
-                <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
-                  <button type="button" className="btn" disabled={saving} onClick={() => setEdit(null)}>
-                    {t('close')}
-                  </button>
-                  <button type="button" className="btn btnPrimary" disabled={saving} onClick={() => saveEdit()}>
-                    {t('save')}
-                  </button>
-                </div>
-              </div>
+                ))
             )}
-          </div>
-        </Modal>
+        </EtatPrincipaleEditModal>
       ) : null}
 
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
@@ -302,13 +300,17 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
           <Can perm={P.manage}>
             <button
               type="button"
-              className="btn btnPrimary"
+              className="btn btnExcel"
               disabled={loading}
-              onClick={() =>
-                api
+              onClick={() => {
+                void api
                   .downloadAdminAnnexRncXlsx(token, lang, { municipalityId: filterMunicipalityId ?? undefined })
                   .then(({ blob, filename }) => triggerBlobDownload(blob, filename))
-              }
+                  .catch((e: unknown) => {
+                    const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'VALIDATION_ERROR')
+                    snack.show(formatApiErrorMessage(raw, t), 'error')
+                  })
+              }}
             >
               {t('annexRncExportWilaya')}
             </button>
@@ -358,7 +360,6 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
                 <th>{t('annexRncColAnnex')}</th>
                 <th>{t('annexRncColIpAuth')}</th>
                 <th>{t('annexRncColYear')}</th>
-                <th>{t('annexRncColIpCount')}</th>
                 <th>{t('annexRncColPcUsed')}</th>
                 <th>{t('annexRncColIpReq')}</th>
                 <th>{t('annexRncColRncStatus')}</th>
@@ -376,7 +377,6 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
                     <td>{line.annex_name || '—'}</td>
                     <td>{line.ip_authorized || '—'}</td>
                     <td>{line.authorization_year || '—'}</td>
-                    <td>{line.authorized_ip_count || '—'}</td>
                     <td>{line.pc_used || '—'}</td>
                     <td>{line.ip_requested || '—'}</td>
                     <td style={rncStatusTableCellStyle(line.rnc_auth_status)}>{rncStatusLabel(line.rnc_auth_status, t)}</td>

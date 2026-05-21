@@ -21,11 +21,16 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 export class ApiError extends Error {
   status: number
   code?: string
-  constructor(message: string, opts: { status: number; code?: string }) {
+  fieldErrors?: Record<string, string>
+  constructor(
+    message: string,
+    opts: { status: number; code?: string; fieldErrors?: Record<string, string> }
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = opts.status
     this.code = opts.code
+    this.fieldErrors = opts.fieldErrors
   }
 }
 
@@ -37,12 +42,25 @@ async function http<T>(path: string, opts: RequestInit & { token?: string } = {}
   const res = await fetch(`${API_URL}${path}`, { ...opts, headers })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const base = String((data as any).error || 'Erreur')
+    const base = String((data as any).error || 'VALIDATION_ERROR')
     const detail = (data as any).detail != null ? String((data as any).detail) : ''
     const msg = detail && detail !== base ? `${base}: ${detail}` : base
-    throw new ApiError(msg, { status: res.status, code: (data as any).code })
+    const fieldErrors = (data as any).fieldErrors as Record<string, string> | undefined
+    throw new ApiError(msg, { status: res.status, code: (data as any).code, fieldErrors })
   }
   return data as T
+}
+
+async function parseJsonSafely(res: Response) {
+  return res.json().catch(() => ({}))
+}
+
+function throwApiErrorFromResponse(res: Response, data: any) {
+  const base = String(data?.error || 'VALIDATION_ERROR')
+  const detail = data?.detail != null ? String(data.detail) : ''
+  const msg = detail && detail !== base ? `${base}: ${detail}` : base
+  const fieldErrors = data?.fieldErrors as Record<string, string> | undefined
+  throw new ApiError(msg, { status: res.status, code: data?.code, fieldErrors })
 }
 
 export async function login(username: string, password: string) {
@@ -228,8 +246,8 @@ export async function adminUploadLogo(token: string, appId: number, file: File) 
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  const data = await parseJsonSafely(res)
+  if (!res.ok) throwApiErrorFromResponse(res, data)
   return data as { app: any }
 }
 
@@ -249,8 +267,8 @@ export async function adminUploadVersion(
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  const data = await parseJsonSafely(res)
+  if (!res.ok) throwApiErrorFromResponse(res, data)
   return data as { version: any; app: any }
 }
 
@@ -331,6 +349,9 @@ export async function adminUserSearch(token: string, q: string) {
       username: string
       name: string | null
       role: 'SUPER_ADMIN' | 'MUNI_ADMIN'
+      job_title?: string | null
+      access_role_name_ar?: string | null
+      access_role_name_fr?: string | null
       municipality_id: number | null
       municipality: any | null
     }[]
@@ -525,7 +546,17 @@ function mailPrefix(mode: 'admin' | 'muni') {
 }
 
 export async function mailValidatorCandidates(token: string, mode: 'admin' | 'muni') {
-  return http<{ users: { id: number; username: string; name: string | null; role: string }[] }>(
+  return http<{
+    users: {
+      id: number
+      username: string
+      name: string | null
+      role: string
+      job_title?: string | null
+      access_role_name_ar?: string | null
+      access_role_name_fr?: string | null
+    }[]
+  }>(
     `${mailPrefix(mode)}/validator-candidates`,
     { method: 'GET', token },
   )
@@ -623,8 +654,8 @@ export async function mailSendRequestResubmit(
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  const data = await parseJsonSafely(res)
+  if (!res.ok) throwApiErrorFromResponse(res, data)
   return data as { send_request: MailSendRequestDetail }
 }
 
@@ -679,8 +710,8 @@ export async function adminMailCreateThread(
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  const data = await parseJsonSafely(res)
+  if (!res.ok) throwApiErrorFromResponse(res, data)
   return data as { thread_ids: number[]; send_request_id?: number }
 }
 
@@ -699,8 +730,8 @@ export async function adminMailReply(
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  const data = await parseJsonSafely(res)
+  if (!res.ok) throwApiErrorFromResponse(res, data)
   return data as { message: any }
 }
 
@@ -728,7 +759,17 @@ export async function muniMailThread(token: string, threadId: number) {
 }
 
 export async function muniListWilayaAdmins(token: string) {
-  return http<{ admins: { id: number; name: string | null; role: 'SUPER_ADMIN' }[] }>(`/muni/wilaya-admins`, { method: 'GET', token })
+  return http<{
+    admins: {
+      id: number
+      name: string | null
+      username: string
+      role: 'SUPER_ADMIN'
+      job_title?: string | null
+      access_role_name_ar?: string | null
+      access_role_name_fr?: string | null
+    }[]
+  }>(`/muni/wilaya-admins`, { method: 'GET', token })
 }
 
 export async function muniMailCreateThread(
@@ -755,8 +796,8 @@ export async function muniMailCreateThread(
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  const data = await parseJsonSafely(res)
+  if (!res.ok) throwApiErrorFromResponse(res, data)
   return data as { thread: any; send_request_id?: number }
 }
 
@@ -779,8 +820,8 @@ export async function muniMailReply(
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  const data = await parseJsonSafely(res)
+  if (!res.ok) throwApiErrorFromResponse(res, data)
   return data as { message: any }
 }
 
@@ -1354,6 +1395,7 @@ export async function muniAnnexRncPatch(
       id?: number
       municipality_annex_id?: number
       pc_used?: string | null
+      authorization_year?: string | null
       ip_requested?: string | null
     }>
     submit?: boolean
@@ -1584,6 +1626,86 @@ export async function downloadMuniCommuneItStaffXlsx(token: string, locale: 'ar'
   return fetchBlobAttachment(path, token, `it-staff-commune.xlsx`)
 }
 
+export type AnnouncementRow = {
+  id: number
+  municipality_id: number | null
+  municipality: { id: number; code: string; name_ar: string; name_fr: string } | null
+  priority: 'important' | 'urgent'
+  status: 'active' | 'finished'
+  body_text: string
+  display_date: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type AnnouncementActiveItem = {
+  id: number
+  priority: 'important' | 'urgent'
+  body_text: string
+  display_date: string
+}
+
+export async function adminAnnouncementsList(
+  token: string,
+  opts: { page?: number; pageSize?: number; q?: string; status?: string; municipalityId?: number } = {},
+) {
+  const page = opts.page ?? 1
+  const pageSize = opts.pageSize ?? 20
+  const parts = [`page=${page}`, `pageSize=${pageSize}`]
+  if (opts.q) parts.push(`q=${encodeURIComponent(opts.q)}`)
+  if (opts.status) parts.push(`status=${encodeURIComponent(opts.status)}`)
+  if (opts.municipalityId) parts.push(`municipality_id=${opts.municipalityId}`)
+  return http<{ rows: AnnouncementRow[]; total: number; page: number; pageSize: number }>(
+    `/admin/announcements?${parts.join('&')}`,
+    { method: 'GET', token },
+  )
+}
+
+export async function adminAnnouncementCreate(
+  token: string,
+  body: {
+    body_text: string
+    priority: 'important' | 'urgent'
+    municipality_id?: number | null
+    display_date: string
+  },
+) {
+  return http<{ announcement: AnnouncementRow }>(`/admin/announcements`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function adminAnnouncementPatch(
+  token: string,
+  id: number,
+  body: Partial<{
+    body_text: string
+    priority: 'important' | 'urgent'
+    status: 'active' | 'finished'
+    municipality_id: number | null
+    display_date: string
+  }>,
+) {
+  return http<{ announcement: AnnouncementRow }>(`/admin/announcements/${id}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  })
+}
+
+export async function muniAnnouncementsRevision(token: string) {
+  return http<{ revision: number }>(`/muni/announcements/revision`, { method: 'GET', token })
+}
+
+export async function muniAnnouncementsActive(token: string) {
+  return http<{ announcements: AnnouncementActiveItem[] }>(`/muni/announcements/active`, {
+    method: 'GET',
+    token,
+  })
+}
+
 export async function muniMailPrivateReply(
   token: string,
   threadId: number,
@@ -1600,8 +1722,8 @@ export async function muniMailPrivateReply(
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data as any).error || 'Erreur')
+  const data = await parseJsonSafely(res)
+  if (!res.ok) throwApiErrorFromResponse(res, data)
   return data as { thread: any }
 }
 

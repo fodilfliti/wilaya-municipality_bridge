@@ -1,6 +1,8 @@
 :root {
   --navy: #1d4ed8;
   --success: #10b981;
+  --excel: #217346;
+  --excelDark: #185c37;
   --warning: #f59e0b;
   --danger: #ef4444;
 
@@ -304,6 +306,27 @@ select {
   border-color: rgba(16, 185, 129, 0.35);
 }
 
+/* Excel export actions — recognizable green (Microsoft Excel brand tone) */
+.btnExcel {
+  background: var(--excel);
+  border-color: var(--excelDark);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: rgba(33, 115, 70, 0.28) 0 8px 18px;
+}
+
+.btnExcel:hover:not(:disabled) {
+  background: var(--excelDark);
+  border-color: #134d2f;
+  color: #fff;
+}
+
+.btnExcel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .btnWarning {
   background: rgba(245, 158, 11, 0.12);
   border-color: rgba(245, 158, 11, 0.35);
@@ -553,6 +576,29 @@ select {
   box-shadow: rgba(29, 78, 216, 0.18) 0 0 0 4px;
 }
 
+.input.inputInvalid,
+.textarea.inputInvalid {
+  border-color: var(--danger);
+  box-shadow: rgba(239, 68, 68, 0.15) 0 0 0 3px;
+}
+
+.fieldError {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.formErrorBlock {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
 .textarea {
   min-height: 90px;
   resize: vertical;
@@ -580,6 +626,52 @@ select {
 
 .modalWide {
   width: min(920px, 100%);
+}
+
+.modalEtat {
+  width: min(1120px, 100%);
+  max-height: min(92svh, 960px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modalEtat > .etatModalShell {
+  flex: 1;
+  min-height: 0;
+}
+
+.etatModalShell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0;
+}
+
+.etatModalScroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 2px;
+}
+
+.etatModalToolbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.etatModalLineCard {
+  padding: 12px 14px;
 }
 
 .permMatrix {
@@ -837,6 +929,72 @@ select {
   flex-wrap: wrap;
 }
 
+.mailVisibilityBanner {
+  border-radius: 12px;
+  padding: 12px 14px;
+  line-height: 1.55;
+  font-size: 14px;
+}
+
+.mailVisibilityBannerInfo {
+  background: rgba(29, 78, 216, 0.08);
+  border: 1px solid rgba(29, 78, 216, 0.22);
+  color: var(--navy);
+}
+
+.mailVisibilityBannerPrivate {
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.25);
+}
+
+.mailVisibilityBannerWarn {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  font-weight: 700;
+}
+
+.mailReplyModeGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 720px) {
+  .mailReplyModeGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mailReplyModeCard {
+  text-align: start;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+}
+
+.mailReplyModeCard:hover {
+  border-color: rgba(29, 78, 216, 0.35);
+}
+
+.mailReplyModeCardActive {
+  border-color: rgba(29, 78, 216, 0.55);
+  background: rgba(29, 78, 216, 0.06);
+  box-shadow: rgba(29, 78, 216, 0.12) 0 0 0 3px;
+}
+
+.mailReplyModeTitle {
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+.mailReplyModeDesc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .mailPickList {
   max-height: 220px;
   overflow: auto;
@@ -859,10 +1017,16 @@ select {
   align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.mailPickUserName {
+  font-weight: 700;
 }
 
 .mailPickUserMeta {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .rte {
@@ -1108,6 +1272,13 @@ button.hubTile.active {
   gap: 10px;
 }
 
+@media (min-width: 768px) {
+  .etatMuniStepsGuide {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px 16px;
+  }
+}
+
 .etatMuniStepRow {
   display: flex;
   gap: 12px;
@@ -1139,7 +1310,7 @@ button.hubTile.active {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 560px;
+  width: 100%;
 }
 
 .etatMuniLineCard {
@@ -1150,16 +1321,37 @@ button.hubTile.active {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
+  align-items: start;
 }
 
 @media (min-width: 520px) {
   .etatMuniLineFields {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
-  .etatMuniLineFields .etatMuniFieldFull {
-    grid-column: 1 / -1;
+@media (min-width: 900px) {
+  .etatMuniLineFields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+@media (min-width: 1200px) {
+  .etatMuniLineFields {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.etatMuniLineFields .etatMuniFieldFull {
+  grid-column: 1 / -1;
+}
+
+.etatMuniFieldCheck {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+  min-height: 38px;
 }
 
 .etatMuniRncBlock {
@@ -1174,6 +1366,20 @@ button.hubTile.active {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+@media (min-width: 640px) {
+  .etatMuniRncOptions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px 20px;
+  }
+
+  .etatMuniRncOptions .field {
+    flex: 1 1 200px;
+    min-width: 180px;
+  }
 }
 
 .etatMuniRncOption {
@@ -1192,7 +1398,7 @@ button.hubTile.active {
 }
 
 .etatMuniActionPanel {
-  max-width: 560px;
+  width: 100%;
   padding: 12px 14px;
 }
 
@@ -1218,5 +1424,82 @@ button.hubTile.active {
   background: rgba(249, 115, 22, 0.15);
   border-color: rgba(249, 115, 22, 0.35);
   color: #c2410c;
+}
+
+.announcementStack {
+  display: grid;
+  gap: 8px;
+}
+
+.announcementTicker {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  font-weight: 700;
+}
+
+.announcementTicker--urgent {
+  background: #b91c1c;
+  color: #fff;
+  border-color: #991b1b;
+}
+
+.announcementTicker--important {
+  background: #c2410c;
+  color: #fff;
+  border-color: #9a3412;
+}
+
+.announcementTickerTrack {
+  overflow: hidden;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.announcementTickerInner {
+  display: inline-block;
+  white-space: nowrap;
+  min-width: 100%;
+}
+
+.announcementTickerText {
+  display: inline-block;
+  padding-inline: 4px;
+}
+
+.announcementTickerScrollLtr {
+  animation: announcementScrollLtr var(--ticker-duration, 18s) linear infinite;
+}
+
+.announcementTickerScrollRtl {
+  animation: announcementScrollRtl var(--ticker-duration, 18s) linear infinite;
+}
+
+@keyframes announcementScrollLtr {
+  0%,
+  10% {
+    transform: translateX(0);
+  }
+  72%,
+  82% {
+    transform: translateX(calc(-1 * var(--ticker-scroll, 200px)));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes announcementScrollRtl {
+  0%,
+  10% {
+    transform: translateX(0);
+  }
+  72%,
+  82% {
+    transform: translateX(var(--ticker-scroll, 200px));
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
 

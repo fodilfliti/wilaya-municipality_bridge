@@ -2,6 +2,11 @@ import { useState } from 'react'
 import * as api from '../api'
 import { Modal } from './Modal'
 import { useTranslation } from 'react-i18next'
+import { FormErrorBlock, FieldErrorText } from './FormErrorBlock'
+import { useSnackbar } from '../snackbar/SnackbarContext'
+import { apiErrorMessage } from '../validation/applyApiError'
+import { changeCodeSchema } from '../validation/schemas/changeCode'
+import { useZodForm } from '../validation/useZodForm'
 
 export function ChangeCodeModal({
   token,
@@ -13,6 +18,8 @@ export function ChangeCodeModal({
   onClose: () => void
 }) {
   const { t } = useTranslation()
+  const snack = useSnackbar()
+  const form = useZodForm(changeCodeSchema)
   const [currentCode, setCurrentCode] = useState('')
   const [nextCode, setNextCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -23,6 +30,7 @@ export function ChangeCodeModal({
     setCurrentCode('')
     setNextCode('')
     setError(null)
+    form.clearErrors()
   }
 
   if (!open) return null
@@ -54,6 +62,8 @@ export function ChangeCodeModal({
     )
   }
 
+  const inputClass = (path: string) => (form.hasFieldError(path) ? 'input inputInvalid' : 'input')
+
   return (
     <Modal
       title={t('changeCode')}
@@ -67,12 +77,33 @@ export function ChangeCodeModal({
         <div className="muted">{t('changeCodeHint')}</div>
         <label className="field">
           <div className="muted">{t('currentCode')}</div>
-          <input className="input" type="password" value={currentCode} onChange={(e) => setCurrentCode(e.target.value)} />
+          <input
+            id="field-current_code"
+            className={inputClass('current_code')}
+            type="password"
+            value={currentCode}
+            onChange={(e) => {
+              setCurrentCode(e.target.value)
+              form.clearField('current_code')
+            }}
+          />
+          <FieldErrorText message={form.fieldErrorText('current_code', t)} />
         </label>
         <label className="field">
           <div className="muted">{t('newCode')}</div>
-          <input className="input" type="password" value={nextCode} onChange={(e) => setNextCode(e.target.value)} />
+          <input
+            id="field-new_code"
+            className={inputClass('new_code')}
+            type="password"
+            value={nextCode}
+            onChange={(e) => {
+              setNextCode(e.target.value)
+              form.clearField('new_code')
+            }}
+          />
+          <FieldErrorText message={form.fieldErrorText('new_code', t)} />
         </label>
+        <FormErrorBlock message={form.formError} />
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button
             className="btn"
@@ -88,26 +119,27 @@ export function ChangeCodeModal({
             className="btn btnPrimary"
             disabled={saving}
             onClick={async () => {
+              setError(null)
+              const payload = { current_code: currentCode, new_code: nextCode }
+              if (!form.validate(payload, t, ['field-current_code', 'field-new_code'])) return
+              setSaving(true)
               try {
-                setError(null)
-                if (!currentCode.trim()) throw new Error(t('currentCodeRequired'))
-                if (!nextCode.trim()) throw new Error(t('newCodeRequired'))
-                setSaving(true)
                 await api.muniChangeCode(token, { current_code: currentCode.trim(), new_code: nextCode.trim() })
                 reset()
                 setSuccess(true)
-              } catch (e: any) {
-                setError(e.message)
+              } catch (e: unknown) {
+                const msg = apiErrorMessage(e, t)
+                setError(msg)
+                snack.show(msg, 'error')
               } finally {
                 setSaving(false)
               }
             }}
           >
-            {t('save')}
+            {saving ? '...' : t('save')}
           </button>
         </div>
       </div>
     </Modal>
   )
 }
-

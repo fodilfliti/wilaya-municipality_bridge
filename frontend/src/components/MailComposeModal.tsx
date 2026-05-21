@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next'
 import * as api from '../api'
 import { Modal } from './Modal'
 import { RichTextEditor } from './RichTextEditor'
+import { FormErrorBlock, FieldErrorText } from './FormErrorBlock'
+import { useSnackbar } from '../snackbar/SnackbarContext'
+import { apiErrorMessage } from '../validation/applyApiError'
+import { mailComposeSchema } from '../validation/schemas/mailCompose'
+import { useZodForm } from '../validation/useZodForm'
+import { MailPickUserLine } from './MailPickUserLine'
 
 type Target =
   | { type: 'ALL_COMMUNES' }
@@ -19,7 +25,10 @@ export function MailComposeModal({
   onCreated: (result: { threadIds?: number[]; sendRequestId?: number }) => void
 }) {
   const { t, i18n } = useTranslation()
+  const snack = useSnackbar()
+  const form = useZodForm(mailComposeSchema)
   const [error, setError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const [subject, setSubject] = useState('')
@@ -36,7 +45,17 @@ export function MailComposeModal({
   const [selectedUsers, setSelectedUsers] = useState<number[]>([])
 
   const [sendMode, setSendMode] = useState<'DIRECT' | 'VALIDATION'>('DIRECT')
-  const [validatorCandidates, setValidatorCandidates] = useState<{ id: number; name: string | null; username: string }[]>([])
+  const [validatorCandidates, setValidatorCandidates] = useState<
+    {
+      id: number
+      name: string | null
+      username: string
+      role: string
+      job_title?: string | null
+      access_role_name_ar?: string | null
+      access_role_name_fr?: string | null
+    }[]
+  >([])
   const [selectedValidators, setSelectedValidators] = useState<number[]>([])
 
   const isFr = i18n.language === 'fr'
@@ -55,8 +74,8 @@ export function MailComposeModal({
           if (page > 50) break
         }
         setMunicipalities(out)
-      } catch (e: any) {
-        setError(e?.message || 'Erreur')
+      } catch (e: unknown) {
+        setError(apiErrorMessage(e, t))
       }
     })()
   }, [token])
@@ -83,8 +102,8 @@ export function MailComposeModal({
       try {
         const res = await api.adminUserSearch(token, q)
         setUserResults(res.users || [])
-      } catch (e: any) {
-        setError(e?.message || 'Erreur')
+      } catch (e: unknown) {
+        setError(apiErrorMessage(e, t))
       }
     }, 250)
     return () => window.clearTimeout(handle)
@@ -101,7 +120,17 @@ export function MailComposeModal({
       <div className="grid" style={{ gap: 12 }}>
         <div className="field">
           <div className="muted">{t('mailSubject')}</div>
-          <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('mailSubjectPh')} />
+          <input
+            id="field-subject"
+            className={form.hasFieldError('subject') ? 'input inputInvalid' : 'input'}
+            value={subject}
+            onChange={(e) => {
+              setSubject(e.target.value)
+              form.clearField('subject')
+            }}
+            placeholder={t('mailSubjectPh')}
+          />
+          <FieldErrorText message={form.fieldErrorText('subject', t)} />
         </div>
 
         <div className="card cardSubtle">
@@ -159,8 +188,6 @@ export function MailComposeModal({
                 {userResults.map((u) => {
                   const checked = selectedUsers.includes(u.id)
                   const muniLabel = u.municipality ? (isFr ? u.municipality.name_fr : u.municipality.name_ar) : ''
-                  const name = (u.name || '').trim()
-                  const roleLabel = u.role === 'SUPER_ADMIN' ? t('roleAdmin') : u.role === 'MUNI_ADMIN' ? t('roleMuni') : u.role
                   return (
                     <label key={u.id} className="mailPickItem">
                       <input
@@ -168,12 +195,12 @@ export function MailComposeModal({
                         checked={checked}
                         onChange={() => setSelectedUsers((prev) => (checked ? prev.filter((x) => x !== u.id) : [...prev, u.id]))}
                       />
-                      <span className="mailPickUserLine">
-                        <span style={{ fontWeight: 900 }}>{name || u.username}</span>
-                        {name ? <span className="muted mailPickUserMeta">({u.username})</span> : null}
-                        <span className="muted mailPickUserMeta">({roleLabel})</span>
-                        {muniLabel ? <span className="muted mailPickUserMeta">— {muniLabel}</span> : null}
-                      </span>
+                      <MailPickUserLine
+                        name={u.name}
+                        username={u.username}
+                        municipalityLabel={muniLabel || undefined}
+                        jobTitle={u.job_title}
+                      />
                     </label>
                   )
                 })}
@@ -184,8 +211,11 @@ export function MailComposeModal({
 
         <div className="field">
           <div className="muted">{t('mailBody')}</div>
-          <RichTextEditor html={bodyHtml} onChange={setBodyHtml} placeholder={t('mailBodyPh')} />
+          <RichTextEditor html={bodyHtml} onChange={(html) => { setBodyHtml(html); form.clearField('body_html') }} placeholder={t('mailBodyPh')} />
+          <FieldErrorText message={form.fieldErrorText('body_html', t)} />
         </div>
+        <FieldErrorText message={form.fieldErrorText('target', t) || form.fieldErrorText('target.municipality_ids', t) || form.fieldErrorText('target.user_ids', t)} />
+        <FieldErrorText message={form.fieldErrorText('validator_user_ids', t)} />
 
         <div className="card cardSubtle">
           <div className="title" style={{ marginBottom: 8 }}>{t('mailTabValidations')}</div>
@@ -204,7 +234,6 @@ export function MailComposeModal({
             <div className="mailPickList">
               {validatorCandidates.map((u) => {
                 const checked = selectedValidators.includes(u.id)
-                const label = (u.name || '').trim() || u.username
                 return (
                   <label key={u.id} className="mailPickItem">
                     <input
@@ -214,7 +243,11 @@ export function MailComposeModal({
                         setSelectedValidators((prev) => (checked ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
                       }
                     />
-                    <span style={{ fontWeight: 700 }}>{label}</span>
+                    <MailPickUserLine
+                      name={u.name}
+                      username={u.username}
+                      jobTitle={u.job_title}
+                    />
                   </label>
                 )
               })}
@@ -233,6 +266,7 @@ export function MailComposeModal({
           {attachments.length ? <div className="muted">{t('mailAttachmentsCount', { count: attachments.length })}</div> : null}
         </div>
 
+        <FormErrorBlock message={submitError || form.formError} />
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn" disabled={busy} onClick={onClose}>
             {t('cancel')}
@@ -242,19 +276,21 @@ export function MailComposeModal({
             disabled={busy}
             onClick={async () => {
               setError(null)
-              const s = subject.trim()
-              const b = bodyHtml.trim()
-              if (!s) return setError(t('mailSubjectRequired'))
-              if (!b) return setError(t('mailBodyRequired'))
-              if (target.type === 'COMMUNES' && !target.municipality_ids.length) return setError(t('mailTargetRequired'))
-              if (target.type === 'USERS' && !target.user_ids.length) return setError(t('mailTargetRequired'))
-              if (sendMode === 'VALIDATION' && !selectedValidators.length) return setError(t('mailValidatorsRequired'))
+              setSubmitError(null)
+              const payload = {
+                subject,
+                body_html: bodyHtml,
+                target,
+                send_mode: sendMode,
+                validator_user_ids: sendMode === 'VALIDATION' ? selectedValidators : undefined,
+              }
+              if (!form.validate(payload, t, ['field-subject'])) return
 
               setBusy(true)
               try {
                 const res = await api.adminMailCreateThread(token, {
-                  subject: s,
-                  body_html: b,
+                  subject: subject.trim(),
+                  body_html: bodyHtml.trim(),
                   target,
                   attachments,
                   send_mode: sendMode,
@@ -262,8 +298,10 @@ export function MailComposeModal({
                 })
                 if (res.send_request_id) onCreated({ sendRequestId: res.send_request_id })
                 else onCreated({ threadIds: res.thread_ids || [] })
-              } catch (e: any) {
-                setError(e?.message || 'Erreur')
+              } catch (e: unknown) {
+                const msg = apiErrorMessage(e, t)
+                setSubmitError(msg)
+                snack.show(msg, 'error')
               } finally {
                 setBusy(false)
               }

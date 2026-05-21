@@ -197,7 +197,7 @@ export function MuniOperationSheetPage({ token }: { token: string }) {
           </Link>
           <button
             type="button"
-            className="btn"
+            className="btn btnExcel"
             onClick={() =>
               exportXlsx().catch((e: unknown) => {
                 const raw =

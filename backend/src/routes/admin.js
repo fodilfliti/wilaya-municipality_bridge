@@ -6,7 +6,20 @@ const bcrypt = require("bcryptjs");
 
 const { requireAuth, attachUser, checkBlocked, requireRole } = require("../middleware/auth");
 const { Op } = require("sequelize");
-const { Application, AppVersion, Municipality, User, Download, MailThread, MailMessage, MailRecipient, MailAttachment, sequelize, BackupServerStatus } = require("../db");
+const {
+  Application,
+  AppVersion,
+  Municipality,
+  User,
+  AccessRoleTemplate,
+  Download,
+  MailThread,
+  MailMessage,
+  MailRecipient,
+  MailAttachment,
+  sequelize,
+  BackupServerStatus,
+} = require("../db");
 const { audit } = require("../services/audit");
 const { withTxAudit } = require("../services/txAudit");
 const { storageRoot, publicFileUrl } = require("../services/storage");
@@ -20,10 +33,20 @@ const { accessAdminRouter } = require("./accessAdmin");
 const { userAccessAdminRouter } = require("./userAccessAdmin");
 const userProfileService = require("../modules/access/userProfileService");
 const { etatPrincipaleAdminRouter } = require("./etatPrincipaleAdmin");
+const { announcementsAdminRouter } = require("./announcementsAdmin");
 const { createThreadWithRecipients } = require("../services/mailThreadCreate");
 const mailSendRequestService = require("../modules/mail/mailSendRequestService");
+const { mapUsersForMailPicker } = require("../modules/mail/mailPickerUserDto");
 const { createMailValidationRouter } = require("./mailValidation");
 const municipalityAnnexService = require("../modules/annexes/municipalityAnnexService");
+const { validateBody, validationErrorResponse, zodIssuesToFieldErrors, V } = require("../middleware/validateBody");
+const {
+  appCreateSchema,
+  appPatchSchema,
+  municipalityCreateSchema,
+  municipalityPatchSchema,
+  userCreateSchema
+} = require("../validation/schemas/adminCrud");
 
 const adminRouter = express.Router();
 
@@ -36,6 +59,7 @@ adminRouter.use(wilayaAdminsAdminRouter);
 adminRouter.use(accessAdminRouter);
 adminRouter.use(userAccessAdminRouter);
 adminRouter.use(etatPrincipaleAdminRouter);
+adminRouter.use(announcementsAdminRouter);
 
 const uploadLogo = multer({
   storage: multer.diskStorage({
@@ -81,10 +105,9 @@ const uploadMailAttachments = multer({
 
 adminRouter.use("/mail", createMailValidationRouter({ uploadMailAttachments }));
 
-adminRouter.post("/apps", async (req, res, next) => {
+adminRouter.post("/apps", validateBody(appCreateSchema), async (req, res, next) => {
   try {
-    const { app_name, description } = req.body || {};
-    if (!app_name) return res.status(400).json({ error: "app_name is required" });
+    const { app_name, description } = req.validatedBody || {};
     const { app } = await withTxAudit(
       req,
       req.user.id,
@@ -135,12 +158,12 @@ adminRouter.get("/apps/:appId", async (req, res, next) => {
   }
 });
 
-adminRouter.patch("/apps/:appId", async (req, res, next) => {
+adminRouter.patch("/apps/:appId", validateBody(appPatchSchema), async (req, res, next) => {
   try {
     const app = await Application.findByPk(req.params.appId);
     if (!app) return res.status(404).json({ error: "App not found" });
 
-    const { app_name, description } = req.body || {};
+    const { app_name, description } = req.validatedBody || {};
     const before = app.toJSON();
     await withTxAudit(
       req,
@@ -193,7 +216,7 @@ adminRouter.post("/apps/:appId/logo", uploadLogo.single("logo"), async (req, res
   try {
     const app = await Application.findByPk(req.params.appId);
     if (!app) return res.status(404).json({ error: "App not found" });
-    if (!req.file) return res.status(400).json({ error: "Missing logo file (field name: logo)" });
+    if (!req.file) return res.status(400).json(validationErrorResponse({ logo: V.chooseLogo }));
 
     const mime = String(req.file.mimetype || "");
     const allowed =
@@ -202,7 +225,7 @@ adminRouter.post("/apps/:appId/logo", uploadLogo.single("logo"), async (req, res
       mime === "image/jpeg" ||
       mime === "image/webp" ||
       mime === "image/gif";
-    if (!allowed) return res.status(400).json({ error: "Unsupported logo type" });
+    if (!allowed) return res.status(400).json({ error: "VALIDATION_ERROR" });
 
     const rel = `logos/${req.file.filename}`.replace(/\\/g, "/");
     const url = publicFileUrl(rel);
@@ -233,10 +256,10 @@ adminRouter.post(
     const app = await Application.findByPk(req.params.appId);
     if (!app) return res.status(404).json({ error: "App not found" });
     const binaryFile = req.files?.file?.[0];
-    if (!binaryFile) return res.status(400).json({ error: "Missing binary file (field name: file)" });
+    if (!binaryFile) return res.status(400).json(validationErrorResponse({ file: V.chooseAppFile }));
 
     const { version_number, release_notes } = req.body || {};
-    if (!version_number) return res.status(400).json({ error: "version_number is required" });
+    if (!version_number) return res.status(400).json(validationErrorResponse({ version_number: V.versionNumberRequired }));
 
     const rel = `binaries/${binaryFile.filename}`.replace(/\\/g, "/");
     const url = publicFileUrl(rel);
@@ -273,7 +296,7 @@ adminRouter.post(
             mime === "image/webp" ||
             mime === "image/gif";
           if (!allowed) {
-            const err = new Error("Unsupported logo type");
+            const err = new Error("VALIDATION_ERROR");
             err.status = 400;
             throw err;
           }
@@ -648,8 +671,9 @@ adminRouter.post("/versions/:versionId/progress/pdf", async (req, res, next) => 
 
 adminRouter.post("/municipalities", async (req, res, next) => {
   try {
-    const { name_ar, name_fr, code } = req.body || {};
-    if (!name_ar || !name_fr || !code) return res.status(400).json({ error: "name_ar, name_fr, code are required" });
+    const parsed = municipalityCreateSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorResponse(zodIssuesToFieldErrors(parsed.error.issues)));
+    const { name_ar, name_fr, code } = parsed.data;
     const { muni } = await withTxAudit(
       req,
       req.user.id,
@@ -709,7 +733,9 @@ adminRouter.patch("/municipalities/:municipalityId", async (req, res, next) => {
     const muni = await Municipality.findByPk(req.params.municipalityId);
     if (!muni) return res.status(404).json({ error: "Municipality not found" });
 
-    const { name_ar, name_fr, code } = req.body || {};
+    const parsed = municipalityPatchSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json(validationErrorResponse(zodIssuesToFieldErrors(parsed.error.issues)));
+    const { name_ar, name_fr, code } = parsed.data;
     const before = muni.toJSON();
     await withTxAudit(
       req,
@@ -955,28 +981,19 @@ adminRouter.delete("/municipalities/:municipalityId/annexes/:annexId", async (re
   }
 });
 
-adminRouter.post("/municipalities/:municipalityId/users", async (req, res, next) => {
+adminRouter.post("/municipalities/:municipalityId/users", validateBody(userCreateSchema), async (req, res, next) => {
   try {
     const muni = await Municipality.findByPk(req.params.municipalityId);
     if (!muni) return res.status(404).json({ error: "Municipality not found" });
 
-    const username = (req.body?.username || "").trim();
-    const requestedName = (req.body?.name || "").trim() || null;
-
-    if (!username) return res.status(400).json({ error: "username is required" });
-
-    const USERNAME_RE = /^[A-Za-z0-9_]+$/;
-    if (!USERNAME_RE.test(username)) {
-      return res.status(400).json({
-        error: "Invalid username format. Use letters, numbers, and underscore (_) only (no spaces).",
-      });
-    }
+    const username = String(req.validatedBody.username || "").trim();
+    const requestedName = req.validatedBody.name ? String(req.validatedBody.name).trim() : null;
 
     const code8 = generate8DigitCode();
     const password_hash = await bcrypt.hash(code8, 12);
 
     const existing = await User.findOne({ where: { username } });
-    if (existing) return res.status(409).json({ error: "Username already exists" });
+    if (existing) return res.status(409).json({ error: V.errorUsernameExists });
 
     const pdf = await generateCredentialsPdf({
       username,
@@ -1033,19 +1050,15 @@ adminRouter.post("/wilaya-admins", async (req, res, next) => {
   try {
     if (!req.user?.can_create_wilaya_admins) return res.status(403).json({ error: "Forbidden" });
 
-    const username = (req.body?.username || "").trim();
-    const requestedName = (req.body?.name || "").trim() || null;
-    if (!username) return res.status(400).json({ error: "username is required" });
-
-    const USERNAME_RE = /^[A-Za-z0-9_]+$/;
-    if (!USERNAME_RE.test(username)) {
-      return res.status(400).json({
-        error: "Invalid username format. Use letters, numbers, and underscore (_) only (no spaces)."
-      });
+    const parsed = userCreateSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json(validationErrorResponse(zodIssuesToFieldErrors(parsed.error.issues)));
     }
+    const username = String(parsed.data.username || "").trim();
+    const requestedName = parsed.data.name ? String(parsed.data.name).trim() : null;
 
     const existing = await User.findOne({ where: { username } });
-    if (existing) return res.status(409).json({ error: "Username already exists" });
+    if (existing) return res.status(409).json({ error: V.errorUsernameExists });
 
     const code8 = generate8DigitCode();
     const password_hash = await bcrypt.hash(code8, 12);
@@ -1309,21 +1322,28 @@ adminRouter.get("/users/search", async (req, res, next) => {
       where: {
         [Op.or]: [{ username: { [Op.iLike]: `%${q}%` } }, { name: { [Op.iLike]: `%${q}%` } }]
       },
+      attributes: ["id", "username", "name", "role", "job_title", "municipality_id"],
       include: [{ model: Municipality, attributes: ["id", "code", "name_ar", "name_fr"] }],
       order: [["username", "ASC"]],
       limit: 20
     });
+    const rows = await mapUsersForMailPicker(users);
     res.json({
-      users: users.map((u) => ({
-        id: u.id,
-        username: u.username,
-        name: u.name,
-        role: u.role,
-        municipality_id: u.municipality_id,
-        municipality: u.Municipality
-          ? { id: u.Municipality.id, code: u.Municipality.code, name_ar: u.Municipality.name_ar, name_fr: u.Municipality.name_fr }
-          : null
-      }))
+      users: rows.map((row, i) => {
+        const plain = users[i].get({ plain: true });
+        return {
+          ...row,
+          municipality_id: plain.municipality_id,
+          municipality: plain.Municipality
+            ? {
+                id: plain.Municipality.id,
+                code: plain.Municipality.code,
+                name_ar: plain.Municipality.name_ar,
+                name_fr: plain.Municipality.name_fr,
+              }
+            : null,
+        };
+      }),
     });
   } catch (e) {
     next(e);

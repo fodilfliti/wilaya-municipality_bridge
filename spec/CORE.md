@@ -102,6 +102,54 @@ All modules must write to `AuditLogs` for critical actions to ensure **absolute 
   - Use a **clear loading/disabled state** on the control while the request is in flight when it avoids double submits.
   - On failure, show a **user-readable message** via the app’s **snackbar** (in addition to inline or modal error where already used), using the same **`formatApiErrorMessage`** (or equivalent) pattern as other screens—not silent `.catch(() => {})` for user-initiated actions.
 
+#### Form validation (create/edit modals and forms) — **mandatory**
+
+**From now on**, every **create/edit** screen (page or modal) that submits data to the API **must** follow this pattern. No new or changed form may ship with manual `if (!field)` checks only, silent failures, or raw English validation strings.
+
+##### Client (React)
+
+- **Schema**: define a **Zod** schema per form under `frontend/src/validation/schemas/` (or module-local schema file re-exported there). Issue `message` values must be **i18n keys** only (see `frontend/src/validation/messages.ts` — never default Zod English text).
+- **Hook**: use **`useZodForm(schema)`** (`frontend/src/validation/useZodForm.ts`) — validate on **Save / Confirm / Upload** click before calling the API.
+- **UX** (all required):
+  - **Per-field**: `FieldErrorText` under each invalid input; add `inputInvalid` class when `form.hasFieldError(path)`.
+  - **Global**: `FormErrorBlock` **immediately above** the primary submit button (inside the modal/page footer area).
+  - **Snackbar**: show **`validationFixFields`** when client validation blocks submit; show API errors via snackbar on failed submit (use `applyApiErrorToForm` or `formatApiErrorMessage` + snackbar).
+  - **Focus**: pass ordered DOM ids to `validate(..., fieldIds)` so the first invalid field receives focus.
+- **API errors**: use **`applyApiErrorToForm`** (`frontend/src/validation/applyApiError.ts`) when the backend returns `fieldErrors`; map codes with **`mapValidationError`** / **`formatApiErrorMessage`**.
+- **Multipart** (file upload): still validate required files/version fields on the client; API helpers must throw **`ApiError`** (with `fieldErrors` when present) — not plain `Error('Erreur')`.
+- **Forbidden**: `.catch(() => {})` on user-initiated actions (refresh, save, export, open modal loaders); see **Async actions** above.
+
+##### Server (Express)
+
+- **Schema**: mirror client rules in `backend/src/validation/schemas/` using the same i18n keys from `backend/src/validation/errorKeys.js`.
+- **Middleware**: apply **`validateBody(schema)`** (`backend/src/middleware/validateBody.js`) on `POST`/`PATCH` JSON bodies; use `req.validatedBody` in handlers.
+- **Response** on validation failure (HTTP 400):
+  ```json
+  { "error": "VALIDATION_ERROR", "fieldErrors": { "field_name": "i18nKey" }, "requestId": "..." }
+  ```
+- **Multipart**: when body fields are in `req.body` after multer, validate required text fields the same way (return `validationErrorResponse({ file: "chooseAppFile", ... })` for missing files).
+- **Business rules** (409, 404, etc.): return stable **i18n keys** in `error` (e.g. `errorUsernameExists`), not English sentences.
+
+##### i18n
+
+- Add keys to **`frontend/src/i18n.ts`** (Arabic + French) for every new validation message.
+- Extend **`mapValidationError`** legacy map only for unavoidable legacy English strings during migration.
+
+##### Module specs & PR checklist
+
+- Each module spec **UI/UX** (and **API** where relevant) must list: Zod fields, i18n keys, and which endpoints use `validateBody`.
+- When touching an existing form without validation, **upgrade it** in the same change (do not defer unless user explicitly waives for a hotfix — note the gap in `SYSTEM_SPEC.md`).
+
+##### Reference implementation (copy these patterns)
+
+| Layer | Location |
+| ----- | -------- |
+| Client helpers | `frontend/src/validation/` (`useZodForm`, `messages`, `zodFieldErrors`, `applyApiError`) |
+| Client UI | `frontend/src/components/FormErrorBlock.tsx` |
+| Client examples | IT staff admin/muni, mail compose, login, municipalities create, apps create |
+| Server middleware | `backend/src/middleware/validateBody.js` |
+| Server schemas | `backend/src/validation/schemas/` |
+
 ### App shell & main navigation (dashboard hub)
 
 The client expects **many modules** (target at least **8** features). Use a single **app shell** so navigation stays predictable.
@@ -110,6 +158,7 @@ The client expects **many modules** (target at least **8** features). Use a sing
 
 - Place **Internal Mail** entry **in the top header** (icon + label, unread badge when applicable). Mail must be reachable **from any screen** without returning to the home hub first.
 - Header also holds: app title/branding, language toggle, user menu (logout, profile if added later).
+- **Commune announcement sync:** poll `GET /muni/announcements/revision` on the same interval family as mail unread (recommended **60s**); fetch `GET /muni/announcements/active` only when `revision` changes — see `spec/modules/ANNOUNCEMENTS.md`.
 
 #### Main landing page (after login)
 
@@ -158,6 +207,11 @@ Some modules (starting with **Operations**) allow exporting tabular data to **`.
 
 - Every **populated table region** (headers, data rows, summary blocks, and extra worksheets such as statistics) must use a **consistent thin border** on all relevant cells so exports read clearly when printed or opened outside the app.
 - **Implementation**: reuse `backend/src/services/excelThinBorders.js` (`thinCellBorder()`, and `applyThinBordersToRange()` when you add rows in bulk and need a full grid). Do not duplicate ad‑hoc border constants in each export module unless a product spec explicitly requires a different weight or color.
+
+#### Export button styling (UI)
+
+- Every screen action that downloads a **`.xlsx`** file must use the shared class **`btn btnExcel`** (`frontend/src/index.css`) — solid **Excel green** (`#217346`), white label text — so users can spot export controls at a glance (distinct from navy primary actions and neutral refresh buttons).
+- Do **not** use `btnPrimary` for Excel export; reserve primary blue for create/save/submit flows.
 
 ### Module Template (Canonical)
 

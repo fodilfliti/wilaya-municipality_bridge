@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { HubTileLink, type HubTile } from "../components/HubTileLink";
+import { AnnouncementBannerStack } from "../components/AnnouncementBannerStack";
 
 export function MuniHubPage() {
   const { t } = useTranslation();
@@ -72,6 +73,8 @@ export function MuniHubPage() {
         </div>
         <div className="muted">{t("hubSubtitleMuni")}</div>
       </div>
+
+      <AnnouncementBannerStack />
 
       <div className="card cardSubtle">
         <div style={{ fontWeight: 800, marginBottom: 12 }}>

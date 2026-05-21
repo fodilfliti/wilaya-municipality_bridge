@@ -54,6 +54,9 @@ export function matchRoutePermission(pathname: string): RouteAccessRule | null {
   if (p === '/commune-it-staff') {
     return { viewKey: PAGE_PERMS.communeItStaff.view, manageKey: PAGE_PERMS.communeItStaff.manage }
   }
+  if (p === '/announcements') {
+    return { viewKey: PAGE_PERMS.announcements.view, manageKey: PAGE_PERMS.announcements.manage }
+  }
   if (p === '/etat-principale/backup-servers') {
     return { viewKey: PAGE_PERMS.backupServers.view, manageKey: PAGE_PERMS.backupServers.manage }
   }

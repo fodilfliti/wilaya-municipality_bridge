@@ -69,6 +69,7 @@ Index: `(municipality_id, display_order)`.
 - Hub **État principal**: tile **Postes MCLT / RNC** → `/etat-principale/mclt-workstations`.
 - Commune: guided **3-step** UI (`MuniEtatPrincipalWorkflow`); draft badge on unsaved lines; RNC request only after save.
 - Wilaya: flat table (code, transmission, columns…, statut RNC, edit modal); filter banner when `?municipalityId=`; **BackButton** for Retour.
+- Commune + Wilaya line forms: responsive multi-column field grid; Wilaya edit uses wide état modal with sticky add/save toolbar (see `ETAT_PRINCIPAL.md` UI/UX).
 
 ### Audit events
 

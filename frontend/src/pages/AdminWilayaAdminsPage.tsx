@@ -101,7 +101,7 @@ export function AdminWilayaAdminsPage({
               {t("quickCreateWilayaAdmin")}
             </button>
           ) : null}
-          <button type="button" className="btn" onClick={() => loadRows().catch(() => {})}>
+          <button type="button" className="btn" onClick={() => void loadRows()}>
             {t("refresh")}
           </button>
           <BackButton />
@@ -454,7 +454,7 @@ export function AdminWilayaAdminsPage({
           isSelf={Number(profileUser.id) === Number(me.id)}
           canEditRoles={canManage}
           onClose={() => setProfileUser(null)}
-          onSaved={() => loadRows().catch(() => {})}
+          onSaved={() => void loadRows()}
           onProfileSaved={
             Number(profileUser.id) === Number(me.id) ? onSelfProfileSaved : undefined
           }

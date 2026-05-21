@@ -9,7 +9,8 @@ function requirePermission(permissionKey, minLevel = "view") {
   return async (req, res, next) => {
     try {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
-      const effective = await resolveEffectivePermissions(req.user);
+      const effective =
+        req.effectivePermissions || (await resolveEffectivePermissions(req.user));
       if (!hasPermission(effective, permissionKey, minLevel)) {
         return res.status(403).json({ error: "Forbidden", permission: permissionKey });
       }

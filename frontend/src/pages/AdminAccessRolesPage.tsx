@@ -238,7 +238,7 @@ export function AdminAccessRolesPage({
                     {t('roleTemplateViewDetails')}
                   </button>
                   {!isSystem && canManage ? (
-                    <button type="button" className="btn btnSmall btnPrimary" onClick={() => openEdit(tpl).catch(() => {})}>
+                    <button type="button" className="btn btnSmall btnPrimary" onClick={() => void openEdit(tpl)}>
                       {t('edit')}
                     </button>
                   ) : null}
@@ -264,7 +264,7 @@ export function AdminAccessRolesPage({
           <div className="muted">{t('accessRolesPageSubtitle')}</div>
         </div>
         {canManage ? (
-          <button type="button" className="btn btnPrimary" onClick={() => openCreate().catch(() => {})}>
+          <button type="button" className="btn btnPrimary" onClick={() => void openCreate()}>
             {t('accessRolesCreate')}
           </button>
         ) : null}
@@ -380,7 +380,7 @@ export function AdminAccessRolesPage({
             <button type="button" className="btn" disabled={saving} onClick={() => setEditorOpen(false)}>
               {t('cancel')}
             </button>
-            <button type="button" className="btn btnPrimary" disabled={saving} onClick={() => saveRole().catch(() => {})}>
+            <button type="button" className="btn btnPrimary" disabled={saving} onClick={() => void saveRole()}>
               {saving ? t('loading') : t('save')}
             </button>
           </div>

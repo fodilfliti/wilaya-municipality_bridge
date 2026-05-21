@@ -128,7 +128,7 @@ export function AdminUsersPage({ token }: { token: string }) {
               {t("createUserCta")}
             </button>
           </Can>
-          <button type="button" className="btn" onClick={() => loadRows().catch(() => {})}>
+          <button type="button" className="btn" onClick={() => void loadRows()}>
             {t("refresh")}
           </button>
           <BackButton />
@@ -505,7 +505,7 @@ export function AdminUsersPage({ token }: { token: string }) {
           displayName={profileUser.name || profileUser.username}
           accountScope="commune"
           onClose={() => setProfileUser(null)}
-          onSaved={() => loadRows().catch(() => {})}
+          onSaved={() => void loadRows()}
         />
       ) : null}
     </div>

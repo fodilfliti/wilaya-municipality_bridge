@@ -25,4 +25,5 @@ export const PAGE_PERMS = {
     view: 'organization.access_roles.manage',
     manage: 'organization.access_roles.manage',
   },
+  announcements: { view: 'announcements.view', manage: 'announcements.manage' },
 } as const

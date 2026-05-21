@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next'
 import * as api from '../api'
 import { Modal } from './Modal'
 import { RichTextEditor } from './RichTextEditor'
+import { FormErrorBlock, FieldErrorText } from './FormErrorBlock'
+import { useSnackbar } from '../snackbar/SnackbarContext'
+import { apiErrorMessage } from '../validation/applyApiError'
+import { muniMailComposeSchema } from '../validation/schemas/mailCompose'
+import { useZodForm } from '../validation/useZodForm'
+import { MailPickUserLine } from './MailPickUserLine'
 
 type Target = { type: 'ALL_WILAYA_ADMINS' } | { type: 'WILAYA_ADMINS'; user_ids: number[] }
 
@@ -16,7 +22,10 @@ export function MuniMailComposeModal({
   onCreated: (result: { threadId?: number; sendRequestId?: number }) => void
 }) {
   const { t } = useTranslation()
+  const snack = useSnackbar()
+  const form = useZodForm(muniMailComposeSchema)
   const [error, setError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const [subject, setSubject] = useState('')
@@ -24,23 +33,43 @@ export function MuniMailComposeModal({
   const [attachments, setAttachments] = useState<File[]>([])
 
   const [targetType, setTargetType] = useState<Target['type']>('ALL_WILAYA_ADMINS')
-  const [admins, setAdmins] = useState<{ id: number; name: string | null }[] | null>(null)
+  const [admins, setAdmins] = useState<
+    {
+      id: number
+      name: string | null
+      username: string
+      role: string
+      job_title?: string | null
+      access_role_name_ar?: string | null
+      access_role_name_fr?: string | null
+    }[] | null
+  >(null)
   const [selectedAdmins, setSelectedAdmins] = useState<number[]>([])
 
   const [sendMode, setSendMode] = useState<'DIRECT' | 'VALIDATION'>('DIRECT')
-  const [validatorCandidates, setValidatorCandidates] = useState<{ id: number; name: string | null; username: string }[]>([])
+  const [validatorCandidates, setValidatorCandidates] = useState<
+    {
+      id: number
+      name: string | null
+      username: string
+      role: string
+      job_title?: string | null
+      access_role_name_ar?: string | null
+      access_role_name_fr?: string | null
+    }[]
+  >([])
   const [selectedValidators, setSelectedValidators] = useState<number[]>([])
 
   useEffect(() => {
     ;(async () => {
       try {
         const res = await api.muniListWilayaAdmins(token)
-        setAdmins((res.admins || []).map((a) => ({ id: a.id, name: a.name || null })))
-      } catch (e: any) {
-        setError(e?.message || 'Erreur')
+        setAdmins(res.admins || [])
+      } catch (e: unknown) {
+        setError(apiErrorMessage(e, t))
       }
     })()
-  }, [token])
+  }, [token, t])
 
   useEffect(() => {
     ;(async () => {
@@ -63,7 +92,17 @@ export function MuniMailComposeModal({
       <div className="grid" style={{ gap: 12 }}>
         <div className="field">
           <div className="muted">{t('mailSubject')}</div>
-          <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('mailSubjectPh')} />
+          <input
+            id="field-subject"
+            className={form.hasFieldError('subject') ? 'input inputInvalid' : 'input'}
+            value={subject}
+            onChange={(e) => {
+              setSubject(e.target.value)
+              form.clearField('subject')
+            }}
+            placeholder={t('mailSubjectPh')}
+          />
+          <FieldErrorText message={form.fieldErrorText('subject', t)} />
         </div>
 
         <div className="card cardSubtle">
@@ -89,7 +128,6 @@ export function MuniMailComposeModal({
               <div className="mailPickList">
                 {(admins || []).map((a) => {
                   const checked = selectedAdmins.includes(a.id)
-                  const label = (a.name || '').trim() || t('wilayaAdminNumbered', { id: a.id })
                   return (
                     <label key={a.id} className="mailPickItem">
                       <input
@@ -97,18 +135,24 @@ export function MuniMailComposeModal({
                         checked={checked}
                         onChange={() => setSelectedAdmins((prev) => (checked ? prev.filter((x) => x !== a.id) : [...prev, a.id]))}
                       />
-                      <span>{label}</span>
+                      <MailPickUserLine
+                        name={a.name}
+                        username={a.username}
+                        jobTitle={a.job_title}
+                      />
                     </label>
                   )
                 })}
               </div>
             </div>
           ) : null}
+          <FieldErrorText message={form.fieldErrorText('target.user_ids', t) || form.fieldErrorText('target', t)} />
         </div>
 
         <div className="field">
           <div className="muted">{t('mailBody')}</div>
-          <RichTextEditor html={bodyHtml} onChange={setBodyHtml} placeholder={t('mailBodyPh')} />
+          <RichTextEditor html={bodyHtml} onChange={(html) => { setBodyHtml(html); form.clearField('body_html') }} placeholder={t('mailBodyPh')} />
+          <FieldErrorText message={form.fieldErrorText('body_html', t)} />
         </div>
 
         <div className="card cardSubtle">
@@ -128,7 +172,6 @@ export function MuniMailComposeModal({
             <div className="mailPickList">
               {validatorCandidates.map((u) => {
                 const checked = selectedValidators.includes(u.id)
-                const label = (u.name || '').trim() || u.username
                 return (
                   <label key={u.id} className="mailPickItem">
                     <input
@@ -138,12 +181,17 @@ export function MuniMailComposeModal({
                         setSelectedValidators((prev) => (checked ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
                       }
                     />
-                    <span style={{ fontWeight: 700 }}>{label}</span>
+                    <MailPickUserLine
+                      name={u.name}
+                      username={u.username}
+                      jobTitle={u.job_title}
+                    />
                   </label>
                 )
               })}
             </div>
           ) : null}
+          <FieldErrorText message={form.fieldErrorText('validator_user_ids', t)} />
         </div>
 
         <div className="field">
@@ -152,6 +200,7 @@ export function MuniMailComposeModal({
           {attachments.length ? <div className="muted">{t('mailAttachmentsCount', { count: attachments.length })}</div> : null}
         </div>
 
+        <FormErrorBlock message={submitError || form.formError} />
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn" disabled={busy} onClick={onClose}>
             {t('cancel')}
@@ -161,18 +210,21 @@ export function MuniMailComposeModal({
             disabled={busy}
             onClick={async () => {
               setError(null)
-              const s = subject.trim()
-              const b = bodyHtml.trim()
-              if (!s) return setError(t('mailSubjectRequired'))
-              if (!b) return setError(t('mailBodyRequired'))
-              if (target.type === 'WILAYA_ADMINS' && !target.user_ids.length) return setError(t('mailTargetRequired'))
-              if (sendMode === 'VALIDATION' && !selectedValidators.length) return setError(t('mailValidatorsRequired'))
+              setSubmitError(null)
+              const payload = {
+                subject,
+                body_html: bodyHtml,
+                target,
+                send_mode: sendMode,
+                validator_user_ids: sendMode === 'VALIDATION' ? selectedValidators : undefined,
+              }
+              if (!form.validate(payload, t, ['field-subject'])) return
 
               setBusy(true)
               try {
                 const res = await api.muniMailCreateThread(token, {
-                  subject: s,
-                  body_html: b,
+                  subject: subject.trim(),
+                  body_html: bodyHtml.trim(),
                   target,
                   attachments,
                   send_mode: sendMode,
@@ -180,8 +232,10 @@ export function MuniMailComposeModal({
                 })
                 if (res.send_request_id) onCreated({ sendRequestId: res.send_request_id })
                 else onCreated({ threadId: Number(res.thread?.id) })
-              } catch (e: any) {
-                setError(e?.message || 'Erreur')
+              } catch (e: unknown) {
+                const msg = apiErrorMessage(e, t)
+                setSubmitError(msg)
+                snack.show(msg, 'error')
               } finally {
                 setBusy(false)
               }

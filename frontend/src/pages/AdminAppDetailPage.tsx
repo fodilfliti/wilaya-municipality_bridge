@@ -2,12 +2,22 @@ import { useCallback, useEffect, useState } from "react";
 import { BackButton } from '../components/BackButton'
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { z } from 'zod'
 
 import * as api from "../api";
 import { Modal } from "../components/Modal";
 import { ErrorPopup } from "../components/ErrorPopup";
+import { FormErrorBlock, FieldErrorText } from '../components/FormErrorBlock'
 import { useSnackbar } from "../snackbar/SnackbarContext";
 import { formatApiErrorMessage } from "../snackbar/formatApiErrorMessage";
+import { V, requiredString } from '../validation/messages'
+import { useZodForm } from '../validation/useZodForm'
+import { applyApiErrorToForm } from '../validation/applyApiError'
+
+const uploadVersionSchema = z.object({
+  file: z.instanceof(File, { message: 'chooseAppFile' }),
+  version_number: requiredString('versionNumberRequired').max(64, { message: V.maxLength }),
+})
 
 export function AdminAppDetailPage({ token }: { token: string }) {
   const { t } = useTranslation();
@@ -29,13 +39,14 @@ export function AdminAppDetailPage({ token }: { token: string }) {
   const [versionNumber, setVersionNumber] = useState("");
   const [releaseNotes, setReleaseNotes] = useState("");
   const [newLogoFile, setNewLogoFile] = useState<File | null>(null);
+  const uploadForm = useZodForm(uploadVersionSchema)
 
   const reportPageErr = useCallback(
     (e: unknown) => {
       const raw =
         e instanceof api.ApiError
           ? e.message
-          : String((e as Error)?.message || "Erreur");
+          : String((e as Error)?.message || "VALIDATION_ERROR");
       const msg = formatApiErrorMessage(raw, t);
       setError(msg);
       snack.show(msg, "error");
@@ -47,7 +58,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
     const raw =
       e instanceof api.ApiError
         ? e.message
-        : String((e as Error)?.message || "Erreur");
+        : String((e as Error)?.message || "VALIDATION_ERROR");
     const msg = formatApiErrorMessage(raw, t);
     setModalError(msg);
     snack.show(msg, "error");
@@ -149,6 +160,7 @@ export function AdminAppDetailPage({ token }: { token: string }) {
             setModalError(null);
             setModalSubmitting(false);
             resetForm();
+            uploadForm.clearErrors()
           }}
           error={modalError}
         >
@@ -156,18 +168,25 @@ export function AdminAppDetailPage({ token }: { token: string }) {
             <label className="field">
               <div className="muted">{t("appBinaryFile")}</div>
               <input
-                className="input"
+                id="field-file"
+                className={`input${uploadForm.hasFieldError('file') ? ' inputInvalid' : ''}`}
                 type="file"
                 onChange={(e) => setBinaryFile(e.target.files?.[0] || null)}
               />
+              <FieldErrorText message={uploadForm.fieldErrorText('file', t)} />
             </label>
             <label className="field">
               <div className="muted">{t("versionNumber")}</div>
               <input
-                className="input"
+                id="field-version_number"
+                className={`input${uploadForm.hasFieldError('version_number') ? ' inputInvalid' : ''}`}
                 value={versionNumber}
-                onChange={(e) => setVersionNumber(e.target.value)}
+                onChange={(e) => {
+                  uploadForm.clearField('version_number')
+                  setVersionNumber(e.target.value)
+                }}
               />
+              <FieldErrorText message={uploadForm.fieldErrorText('version_number', t)} />
             </label>
             <label className="field">
               <div className="muted">{t("releaseNotes")}</div>
@@ -186,30 +205,35 @@ export function AdminAppDetailPage({ token }: { token: string }) {
                 onChange={(e) => setNewLogoFile(e.target.files?.[0] || null)}
               />
             </label>
+            <FormErrorBlock message={uploadForm.formError} />
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button
                 className="btn btnPrimary"
                 disabled={modalSubmitting}
                 onClick={async () => {
                   try {
-                    if (!binaryFile) throw new Error(t("chooseAppFile"));
-                    if (!versionNumber.trim())
-                      throw new Error(t("versionNumberRequired"));
+                    const payload = { file: binaryFile, version_number: versionNumber }
+                    if (!uploadForm.validate(payload, t, ['field-file', 'field-version_number'])) return
                     setModalError(null);
                     setModalSubmitting(true);
                     await api.adminUploadVersion(token, appId, {
-                      file: binaryFile,
-                      version_number: versionNumber.trim(),
+                      file: payload.file,
+                      version_number: payload.version_number.trim(),
                       release_notes: releaseNotes || undefined,
                       logoFile: newLogoFile,
                     });
                     setAddOpen(false);
                     setModalError(null);
                     resetForm();
+                    uploadForm.clearErrors()
                     await load();
                     snack.show(t("snackbarCreated"), "success");
                   } catch (e: unknown) {
-                    reportModalErr(e);
+                    applyApiErrorToForm(e, t, {
+                      setFormError: uploadForm.setFormError,
+                      setFieldErrors: uploadForm.setFieldErrors,
+                      snackShow: (msg) => snack.show(msg, 'error'),
+                    })
                   } finally {
                     setModalSubmitting(false);
                   }

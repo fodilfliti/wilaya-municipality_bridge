@@ -7,12 +7,15 @@ export function Modal({
   error,
   onClose,
   wide,
+  etat,
 }: {
   title: string
   children: ReactNode
   error?: string | null
   onClose: () => void
   wide?: boolean
+  /** Large modal for état principal multi-line edits (scroll body + sticky toolbar). */
+  etat?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -30,7 +33,12 @@ export function Modal({
 
   return (
     <div className="modalBackdrop" onMouseDown={onClose}>
-      <div className={wide ? 'modal modalWide' : 'modal'} onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className={
+          etat ? 'modal modalEtat' : wide ? 'modal modalWide' : 'modal'
+        }
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="modalHeader">
           <div className="title">{title}</div>
           <button className="btn" onClick={onClose}>

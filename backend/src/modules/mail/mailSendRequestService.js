@@ -11,6 +11,7 @@ const {
 const { audit } = require("../../services/audit");
 const { publicFileUrl } = require("../../services/storage");
 const { createThreadWithRecipients } = require("../../services/mailThreadCreate");
+const { mapUsersForMailPicker } = require("./mailPickerUserDto");
 
 async function listValidatorCandidates(req) {
   const where = { is_blocked: false };
@@ -26,15 +27,10 @@ async function listValidatorCandidates(req) {
   }
   const users = await User.findAll({
     where,
-    attributes: ["id", "username", "name", "role"],
+    attributes: ["id", "username", "name", "role", "job_title"],
     order: [["name", "ASC"], ["username", "ASC"]],
   });
-  return users.map((u) => ({
-    id: u.id,
-    username: u.username,
-    name: u.name,
-    role: u.role,
-  }));
+  return mapUsersForMailPicker(users);
 }
 
 async function assertValidatorIds(req, validatorUserIds) {

@@ -3,15 +3,15 @@
 ### Purpose & constraints
 
 - Third slice under **État principal**: **RNC IP authorization per commune annex** (many rows per `municipality_id`), linked to `municipality_annexes`.
-- Columns (text): **IP autorisée**, **année d’autorisation**, **nombre @ IP autorisées**, **PC utilisé**, **@ IP demandée à autoriser** (commune).
+- Columns (text): **IP autorisée** (Wilaya), **année d’autorisation** (commune saisit), **PC utilisé**, **@ IP demandée à autoriser** (commune). **`authorized_ip_count`** retained in DB only — not shown in UI/Excel.
 - **Commune** selects an annex from the Wilaya registry, fills request fields, may **submit** transmission, and **requests authorization** → internal mail to all `SUPER_ADMIN`.
 - **Wilaya** sets authorized IP, year, count, approves/rejects.
 - Display in UI/Excel: code commune, nom commune, nom annexe (from annex registry).
 
 ### Roles & rules
 
-- **`SUPER_ADMIN`:** list all; export Excel; PATCH any commune (including `ip_authorized`, `authorization_year`, `authorized_ip_count`, `rnc_auth_status`).
-- **`MUNI_ADMIN`:** CRUD own lines; cannot change Wilaya-only fields; POST request-authorization when `ip_requested` is set.
+- **`SUPER_ADMIN`:** list all; export Excel; PATCH any commune (including `ip_authorized`, `authorization_year`, `rnc_auth_status`).
+- **`MUNI_ADMIN`:** CRUD own lines; fills `pc_used`, `authorization_year`, `ip_requested` (required on save); cannot change `ip_authorized` / `rnc_auth_status`; POST request-authorization when `ip_requested` is set.
 
 ### Data model
 
@@ -25,9 +25,9 @@
 | `display_order` | INT | default 0 |
 | `ip_authorized` | STRING(500) nullable | Wilaya |
 | `authorization_year` | STRING(20) nullable | |
-| `authorized_ip_count` | STRING(50) nullable | |
+| `authorized_ip_count` | STRING(50) nullable | legacy — not exposed in UI/Excel |
 | `pc_used` | STRING(500) nullable | |
-| `ip_requested` | STRING(500) nullable | commune demand |
+| `ip_requested` | STRING(500) nullable in DB | commune demand — **required on commune PATCH** (non-empty per line) |
 | `rnc_auth_status` | STRING(20) | `none` \| `pending` \| `approved` \| `rejected` |
 | `rnc_auth_requested_at` | DATE nullable | |
 | `submitted_at` | DATE nullable | shared per commune transmission |
@@ -36,8 +36,8 @@
 
 ### Workflows (commune)
 
-1. **Step 1:** Select annex + fill fields → **Enregistrer le brouillon**.
-2. **Step 2:** On each saved line → **Demander autorisation** (mail to Wilaya).
+1. **Step 1:** Select annex + fill fields (including **IP demandée** and **année**) → **Enregistrer** or **Demander autorisation** (button saves all lines then submits the request for that line).
+2. **Step 2:** **Demander autorisation** sends mail to Wilaya. Changing **IP demandée** after a prior request resets `rnc_auth_status` to `none` (and clears Wilaya **IP autorisée** on save) — commune must request again for the new address.
 3. **Step 3:** **Transmettre à la wilaya** when inventory is complete.
 
 ### API endpoints
@@ -62,8 +62,9 @@
 ### UI/UX
 
 - Hub **État principal**: tile **IP RNC annexes** → `/etat-principale/annex-rnc-authorizations`.
-- Commune: annex dropdown (from registry); **3-step** workflow (`MuniEtatPrincipalWorkflow`); per saved line **Demander autorisation**.
+- Commune: annex dropdown; field order — **annexe**, **PC utilisé**, **année d’autorisation**, **IP demandée** (`etatMuniRncBlock` + **Demander autorisation**); **IP demandée** required with `inputInvalid` + per-field error. Excel: no **nombre IP** column.
 - Wilaya: table with code, annex name, columns, statut; edit modal; **`?municipalityId=`** filter + banner; **BackButton**.
+- Commune + Wilaya line forms: responsive multi-column field grid; Wilaya edit uses wide état modal with sticky add/save toolbar (see `ETAT_PRINCIPAL.md` UI/UX).
 
 ### Audit events
 

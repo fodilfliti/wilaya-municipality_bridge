@@ -6,7 +6,7 @@ The system is a **Bridge for communications and operations** between **Wilaya (A
 
 ### Canonical spec documents
 
-- **Core (shared standards + app shell / main hub navigation + Excel export pattern + global UI action order & async error/snackbar rules)**: `spec/CORE.md`
+- **Core (shared standards + app shell / main hub navigation + Excel export pattern + global UI action order, async error/snackbar rules, mandatory Zod form validation)**: `spec/CORE.md`
 - **Modules**:
   - **Apps distribution & update tracking**: `spec/modules/APPS.md`
   - **Internal mail (threads + attachments + seen/read evidence)**: `spec/modules/MAIL.md`
@@ -18,6 +18,7 @@ The system is a **Bridge for communications and operations** between **Wilaya (A
   - **État principal (fixed per-commune grids; serveurs de secours, etc.)**: `spec/modules/ETAT_PRINCIPAL.md`
   - **État principal — postes MCLT & autorisation RNC**: `spec/modules/ETAT_PRINCIPAL_MCLT.md`
   - **État principal — IP autorisée RNC (annexes)**: `spec/modules/ETAT_PRINCIPAL_ANNEX_RNC.md`
+  - **Urgent announcements (Wilaya → commune hub)**: `spec/modules/ANNOUNCEMENTS.md`
 
 ### Cross-cutting updates (recent)
 
@@ -29,9 +30,13 @@ The system is a **Bridge for communications and operations** between **Wilaya (A
 - **Annex registry:** no `ip_address` column — RNC IPs in `ETAT_PRINCIPAL_ANNEX_RNC.md` (`spec/modules/ANNEXES.md`).
 - **Commune état MCLT / annex RNC:** 3-step UX (brouillon → demande RNC → transmission) — `ETAT_PRINCIPAL_MCLT.md`, `ETAT_PRINCIPAL_ANNEX_RNC.md`.
 - **Mail pre-send validation:** optional multi-validator approval on **new thread compose only**; scoped validator pickers (commune colleagues / wilaya admins); discussion + send-without-validation flag — `spec/modules/MAIL.md`.
+- **Form validation (mandatory):** all create/edit forms use client Zod + server `VALIDATION_ERROR` / `fieldErrors` with shared i18n keys — `spec/CORE.md` § Form validation; existing forms must be brought into compliance when touched.
+- **Urgent announcements:** Wilaya publishes plain-text notices on commune hub; priority (`important` / `urgent`), marquee + date stack, revision polling (`/muni/announcements/revision`) — `spec/modules/ANNOUNCEMENTS.md`.
+- **Excel export buttons:** use shared green `btnExcel` class on all `.xlsx` download actions — `spec/CORE.md` § Excel export.
 
 ### What to do when adding a new feature
 
 - Create a new module file under `spec/modules/` using the **Module Template** defined in `spec/CORE.md`.
 - Link it from this index under **Modules**.
 - Only add/extend cross-cutting rules in `spec/CORE.md` when the new feature introduces a rule shared by multiple modules.
+- **Every create/edit UI and matching write API** must document and implement validation per `spec/CORE.md` § **Form validation (mandatory)** before the feature is considered complete.

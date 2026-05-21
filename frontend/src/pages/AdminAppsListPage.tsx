@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { z } from 'zod'
 
 import * as api from '../api'
 import { Modal } from '../components/Modal'
 import { ErrorPopup } from '../components/ErrorPopup'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
+import { FormErrorBlock, FieldErrorText } from '../components/FormErrorBlock'
+import { appCreateSchema } from '../validation/schemas/app'
+import { V, requiredString } from '../validation/messages'
+import { useZodForm } from '../validation/useZodForm'
+import { applyApiErrorToForm } from '../validation/applyApiError'
 import { Can } from '../permissions/Can'
 import { PAGE_PERMS } from '../permissions/pagePermissions'
 import { usePerm } from '../permissions/PermissionsContext'
@@ -14,10 +20,17 @@ import { ViewOnlyBanner } from '../components/ViewOnlyBanner'
 
 const P = PAGE_PERMS.apps
 
+const uploadVersionSchema = z.object({
+  file: z.instanceof(File, { message: 'chooseAppFile' }),
+  version_number: requiredString('versionNumberRequired').max(64, { message: V.maxLength }),
+})
+
 export function AdminAppsListPage({ token }: { token: string }) {
   const { t } = useTranslation()
   const { can } = usePerm()
   const snack = useSnackbar()
+  const createAppForm = useZodForm(appCreateSchema)
+  const uploadForm = useZodForm(uploadVersionSchema)
   const canManage = can(P.manage, 'manage')
   const [error, setError] = useState<string | null>(null)
   const [modalError, setModalError] = useState<string | null>(null)
@@ -181,7 +194,16 @@ export function AdminAppsListPage({ token }: { token: string }) {
           <div className="grid">
             <label className="field">
               <div className="muted">{t('appName')}</div>
-              <input className="input" value={appName} onChange={(e) => setAppName(e.target.value)} />
+              <input
+                id="field-app_name"
+                className={createAppForm.hasFieldError('app_name') ? 'input inputInvalid' : 'input'}
+                value={appName}
+                onChange={(e) => {
+                  setAppName(e.target.value)
+                  createAppForm.clearField('app_name')
+                }}
+              />
+              <FieldErrorText message={createAppForm.fieldErrorText('app_name', t)} />
             </label>
             <label className="field">
               <div className="muted">{t('appDescriptionOptional')}</div>
@@ -224,13 +246,15 @@ export function AdminAppsListPage({ token }: { token: string }) {
                 ) : null}
               </div>
             </label>
+            <FormErrorBlock message={createAppForm.formError} />
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button
                 className="btn btnPrimary"
                 disabled={modalSubmitting}
                 onClick={async () => {
                   try {
-                    if (!appName.trim()) throw new Error(t('appNameRequired'))
+                    const payload = { app_name: appName, description: appDesc || '' }
+                    if (!createAppForm.validate(payload, t, ['field-app_name'])) return
                     setModalError(null)
                     setModalSubmitting(true)
                     const created = await api.adminCreateApp(token, { app_name: appName.trim(), description: appDesc || undefined })
@@ -369,17 +393,33 @@ export function AdminAppsListPage({ token }: { token: string }) {
             resetVersionForm()
             setModalError(null)
             setModalSubmitting(false)
+            uploadForm.clearErrors()
           }}
           error={modalError}
         >
           <div className="grid">
             <label className="field">
               <div className="muted">{t('appBinaryFile')}</div>
-              <input className="input" type="file" onChange={(e) => setBinaryFile(e.target.files?.[0] || null)} />
+              <input
+                id="field-file"
+                className={`input${uploadForm.hasFieldError('file') ? ' inputInvalid' : ''}`}
+                type="file"
+                onChange={(e) => setBinaryFile(e.target.files?.[0] || null)}
+              />
+              <FieldErrorText message={uploadForm.fieldErrorText('file', t)} />
             </label>
             <label className="field">
               <div className="muted">{t('versionNumber')}</div>
-              <input className="input" value={versionNumber} onChange={(e) => setVersionNumber(e.target.value)} />
+              <input
+                id="field-version_number"
+                className={`input${uploadForm.hasFieldError('version_number') ? ' inputInvalid' : ''}`}
+                value={versionNumber}
+                onChange={(e) => {
+                  uploadForm.clearField('version_number')
+                  setVersionNumber(e.target.value)
+                }}
+              />
+              <FieldErrorText message={uploadForm.fieldErrorText('version_number', t)} />
             </label>
             <label className="field">
               <div className="muted">{t('releaseNotes')}</div>
@@ -389,29 +429,35 @@ export function AdminAppsListPage({ token }: { token: string }) {
               <div className="muted">{t('changeLogoWithVersionOptional')}</div>
               <input className="input" type="file" accept="image/*,image/svg+xml" onChange={(e) => setNewLogoFile(e.target.files?.[0] || null)} />
             </label>
+            <FormErrorBlock message={uploadForm.formError} />
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button
                 className="btn btnPrimary"
                 disabled={modalSubmitting}
                 onClick={async () => {
                   try {
-                    if (!binaryFile) throw new Error(t('chooseAppFile'))
-                    if (!versionNumber.trim()) throw new Error(t('versionNumberRequired'))
+                    const payload = { file: binaryFile, version_number: versionNumber }
+                    if (!uploadForm.validate(payload, t, ['field-file', 'field-version_number'])) return
                     setModalError(null)
                     setModalSubmitting(true)
                     await api.adminUploadVersion(token, versionApp.id, {
-                      file: binaryFile,
-                      version_number: versionNumber.trim(),
+                      file: payload.file,
+                      version_number: payload.version_number.trim(),
                       release_notes: releaseNotes || undefined,
                       logoFile: newLogoFile,
                     })
                     setVersionApp(null)
                     resetVersionForm()
                     setModalError(null)
+                    uploadForm.clearErrors()
                     await load()
                     snack.show(t('snackbarCreated'), 'success')
                   } catch (e: unknown) {
-                    reportModalErr(e)
+                    applyApiErrorToForm(e, t, {
+                      setFormError: uploadForm.setFormError,
+                      setFieldErrors: uploadForm.setFieldErrors,
+                      snackShow: (msg) => snack.show(msg, 'error'),
+                    })
                   } finally {
                     setModalSubmitting(false)
                   }

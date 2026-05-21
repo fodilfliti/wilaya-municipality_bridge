@@ -179,7 +179,7 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
         <div className="row">
           <button
             type="button"
-            className="btn"
+            className="btn btnExcel"
             onClick={() =>
               exportXlsx().catch((e: unknown) => {
                 const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')

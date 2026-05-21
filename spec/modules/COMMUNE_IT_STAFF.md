@@ -76,6 +76,7 @@
 
 - Search uses case-insensitive match on person fields and commune code/names (Postgres `ILIKE`).
 - Large `programming_languages` text: cap in validation (e.g. 16k chars) to protect DB and exports.
+- **Form UX**: client Zod validation on save (per-field messages + snackbar + banner above submit); server returns `VALIDATION_ERROR` with `fieldErrors` i18n keys on `POST`/`PATCH` `/admin/commune-it-staff` and muni equivalents.
 
 ### Migration / compatibility notes
 

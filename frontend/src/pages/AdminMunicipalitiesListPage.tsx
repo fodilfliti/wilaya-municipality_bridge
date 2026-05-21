@@ -4,8 +4,12 @@ import { useTranslation } from 'react-i18next'
 
 import * as api from '../api'
 import { Modal } from '../components/Modal'
+import { FormErrorBlock, FieldErrorText } from '../components/FormErrorBlock'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
+import { municipalityCreateSchema } from '../validation/schemas/municipality'
+import { useZodForm } from '../validation/useZodForm'
+import { filterDigits } from '../utils/digitsOnly'
 import { Can } from '../permissions/Can'
 import { PAGE_PERMS } from '../permissions/pagePermissions'
 import { usePerm } from '../permissions/PermissionsContext'
@@ -17,6 +21,7 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
   const { t } = useTranslation()
   const { can } = usePerm()
   const snack = useSnackbar()
+  const createForm = useZodForm(municipalityCreateSchema)
   const canManage = can(P.manage, 'manage')
   const [error, setError] = useState<string | null>(null)
   const [modalSubmitting, setModalSubmitting] = useState(false)
@@ -90,7 +95,15 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
                   {t('details')}
                 </Link>
                 <Can perm={P.manage}>
-                  <button className="btn" onClick={() => setEditMuni(m)}>
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      setEditMuni(m)
+                      setNameAr(m.name_ar || '')
+                      setNameFr(m.name_fr || '')
+                      setCode(filterDigits(String(m.code || ''), 32))
+                    }}
+                  >
                     {t('edit')}
                   </button>
                   <button className="btn btnWarning" onClick={() => setDeleteMuni(m)}>
@@ -132,23 +145,55 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
           <div className="grid">
             <label className="field">
               <div className="muted">{t('municipalityNameAr')}</div>
-              <input className="input" value={nameAr} onChange={(e) => setNameAr(e.target.value)} />
+              <input
+                id="field-name_ar"
+                className={createForm.hasFieldError('name_ar') ? 'input inputInvalid' : 'input'}
+                value={nameAr}
+                onChange={(e) => {
+                  setNameAr(e.target.value)
+                  createForm.clearField('name_ar')
+                }}
+              />
+              <FieldErrorText message={createForm.fieldErrorText('name_ar', t)} />
             </label>
             <label className="field">
               <div className="muted">{t('municipalityNameFr')}</div>
-              <input className="input" value={nameFr} onChange={(e) => setNameFr(e.target.value)} />
+              <input
+                id="field-name_fr"
+                className={createForm.hasFieldError('name_fr') ? 'input inputInvalid' : 'input'}
+                value={nameFr}
+                onChange={(e) => {
+                  setNameFr(e.target.value)
+                  createForm.clearField('name_fr')
+                }}
+              />
+              <FieldErrorText message={createForm.fieldErrorText('name_fr', t)} />
             </label>
             <label className="field">
               <div className="muted">{t('municipalityCode')}</div>
-              <input className="input" value={code} onChange={(e) => setCode(e.target.value)} />
+              <input
+                id="field-code"
+                className={createForm.hasFieldError('code') ? 'input inputInvalid' : 'input'}
+                value={code}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="off"
+                onChange={(e) => {
+                  setCode(filterDigits(e.target.value, 32))
+                  createForm.clearField('code')
+                }}
+              />
+              <FieldErrorText message={createForm.fieldErrorText('code', t)} />
             </label>
+            <FormErrorBlock message={createForm.formError} />
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button
                 className="btn btnPrimary"
                 disabled={modalSubmitting}
                 onClick={async () => {
                   try {
-                    if (!nameAr.trim() || !nameFr.trim() || !code.trim()) throw new Error(t('allFieldsRequired'))
+                    const payload = { name_ar: nameAr, name_fr: nameFr, code }
+                    if (!createForm.validate(payload, t, ['field-name_ar', 'field-name_fr', 'field-code'])) return
                     setError(null)
                     setModalSubmitting(true)
                     await api.adminCreateMunicipality(token, { name_ar: nameAr.trim(), name_fr: nameFr.trim(), code: code.trim() })
@@ -186,15 +231,22 @@ export function AdminMunicipalitiesListPage({ token }: { token: string }) {
           <div className="grid">
             <label className="field">
               <div className="muted">{t('municipalityNameAr')}</div>
-              <input className="input" defaultValue={editMuni.name_ar} onChange={(e) => setNameAr(e.target.value)} />
+              <input className="input" value={nameAr} onChange={(e) => setNameAr(e.target.value)} />
             </label>
             <label className="field">
               <div className="muted">{t('municipalityNameFr')}</div>
-              <input className="input" defaultValue={editMuni.name_fr} onChange={(e) => setNameFr(e.target.value)} />
+              <input className="input" value={nameFr} onChange={(e) => setNameFr(e.target.value)} />
             </label>
             <label className="field">
               <div className="muted">{t('municipalityCode')}</div>
-              <input className="input" defaultValue={editMuni.code} onChange={(e) => setCode(e.target.value)} />
+              <input
+                className="input"
+                value={code}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="off"
+                onChange={(e) => setCode(filterDigits(e.target.value, 32))}
+              />
             </label>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button

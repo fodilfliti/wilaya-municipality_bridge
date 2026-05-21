@@ -93,7 +93,7 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
       const raw =
         e instanceof api.ApiError
           ? e.message
-          : String((e as Error)?.message || "Erreur");
+          : String((e as Error)?.message || "VALIDATION_ERROR");
       const msg = formatApiErrorMessage(raw, t);
       setError(msg);
       snack.show(msg, "error");
@@ -143,7 +143,7 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
                 const raw =
                   e instanceof api.ApiError
                     ? e.message
-                    : String((e as Error)?.message || "Erreur");
+                    : String((e as Error)?.message || "VALIDATION_ERROR");
                 const msg = formatApiErrorMessage(raw, t);
                 setError(msg);
                 snack.show(msg, "error");
@@ -159,7 +159,7 @@ export function AdminVersionDetailPage({ token }: { token: string }) {
                 const raw =
                   e instanceof api.ApiError
                     ? e.message
-                    : String((e as Error)?.message || "Erreur");
+                    : String((e as Error)?.message || "VALIDATION_ERROR");
                 const msg = formatApiErrorMessage(raw, t);
                 setError(msg);
                 snack.show(msg, "error");

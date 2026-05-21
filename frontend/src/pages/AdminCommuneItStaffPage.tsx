@@ -5,7 +5,10 @@ import * as api from "../api";
 import { Modal } from "../components/Modal";
 import { triggerBlobDownload } from "../operations/format";
 import { useSnackbar } from "../snackbar/SnackbarContext";
-import { formatApiErrorMessage } from "../snackbar/formatApiErrorMessage";
+import { apiErrorMessage, applyApiErrorToForm } from "../validation/applyApiError";
+import { communeItStaffAdminCreateSchema } from "../validation/schemas/communeItStaff";
+import { useZodForm } from "../validation/useZodForm";
+import { FormErrorBlock, FieldErrorText } from "../components/FormErrorBlock";
 import { Can } from "../permissions/Can";
 import { PAGE_PERMS } from "../permissions/pagePermissions";
 import { usePerm } from "../permissions/PermissionsContext";
@@ -21,6 +24,17 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
   const canManage = can(P.manage, "manage");
   const lang = i18n.language === "fr" ? "fr" : "ar";
   const snack = useSnackbar();
+  const form = useZodForm(communeItStaffAdminCreateSchema);
+  const [saving, setSaving] = useState(false);
+  const fieldIds = [
+    "field-municipality_id",
+    "field-first_name",
+    "field-last_name",
+    "field-nin",
+    "field-phone",
+    "field-email",
+    "field-programming_languages",
+  ];
   const [rows, setRows] = useState<api.CommuneItStaffRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -73,8 +87,7 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
       setRows(res.rows);
       setTotal(res.total);
     } catch (e: unknown) {
-      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
-      snack.show(formatApiErrorMessage(raw, t), "error");
+      snack.show(apiErrorMessage(e, t), "error");
     } finally {
       setLoading(false);
     }
@@ -91,6 +104,7 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
   function openCreate() {
     setEditingId(null);
     setModalError(null);
+    form.clearErrors();
     setFormMunicipalityId(municipalities[0]?.id ?? "");
     setFormFirst("");
     setFormLast("");
@@ -104,6 +118,7 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
   function openEdit(r: api.CommuneItStaffRow) {
     setEditingId(r.id);
     setModalError(null);
+    form.clearErrors();
     setFormMunicipalityId(r.municipality_id);
     setFormFirst(r.first_name);
     setFormLast(r.last_name);
@@ -116,35 +131,38 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
 
   async function saveModal() {
     setModalError(null);
-    const mid = Number(formMunicipalityId);
-    if (!Number.isFinite(mid) || mid < 1) {
-      setModalError(t("itStaffMunicipalityRequired"));
-      return;
-    }
+    const body = {
+      municipality_id: formMunicipalityId === "" ? NaN : Number(formMunicipalityId),
+      first_name: formFirst,
+      last_name: formLast,
+      nin: formNin.trim() || null,
+      phone: formPhone,
+      email: formEmail,
+      programming_languages: formLangs,
+    };
+    if (!form.validate(body, t, fieldIds)) return;
+    setSaving(true);
     try {
-      const body = {
-        municipality_id: mid,
-        first_name: formFirst.trim(),
-        last_name: formLast.trim(),
-        nin: formNin.trim() || null,
-        phone: formPhone.trim(),
-        email: formEmail.trim() || null,
-        programming_languages: formLangs.trim(),
-      };
       if (editingId != null) {
         await api.adminCommuneItStaffUpdate(token, editingId, body);
-        snack.show(t("snackbarSaved"), "success");
       } else {
         await api.adminCommuneItStaffCreate(token, body);
-        snack.show(t("snackbarSaved"), "success");
       }
+      snack.show(t("snackbarSaved"), "success");
       setModalOpen(false);
       await loadRows();
     } catch (e: unknown) {
-      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
-      setModalError(formatApiErrorMessage(raw, t));
+      applyApiErrorToForm(e, t, {
+        setFormError: setModalError,
+        setFieldErrors: form.setFieldErrors,
+        snackShow: (msg) => snack.show(msg, "error"),
+      });
+    } finally {
+      setSaving(false);
     }
   }
+
+  const inputClass = (path: string) => (form.hasFieldError(path) ? "input inputInvalid" : "input");
 
   async function removeRow(id: number) {
     if (!window.confirm(t("itStaffDeleteConfirm"))) return;
@@ -153,8 +171,7 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
       snack.show(t("snackbarSaved"), "success");
       await loadRows();
     } catch (e: unknown) {
-      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
-      snack.show(formatApiErrorMessage(raw, t), "error");
+      snack.show(apiErrorMessage(e, t), "error");
     }
   }
 
@@ -166,8 +183,7 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
       });
       triggerBlobDownload(blob, filename);
     } catch (e: unknown) {
-      const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || "Erreur");
-      snack.show(formatApiErrorMessage(raw, t), "error");
+      snack.show(apiErrorMessage(e, t), "error");
     }
   }
 
@@ -186,11 +202,11 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
             </button>
           </Can>
           <Can perm={P.manage}>
-            <button type="button" className="btn" onClick={() => exportXlsx().catch(() => {})}>
+            <button type="button" className="btn btnExcel" onClick={() => void exportXlsx()}>
               {t("itStaffExportXlsx")}
             </button>
           </Can>
-          <button type="button" className="btn" onClick={() => loadRows().catch(() => {})}>
+          <button type="button" className="btn" onClick={() => void loadRows()}>
             {t("refresh")}
           </button>
           <BackButton />
@@ -326,9 +342,14 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
             <label className="field">
               <div className="muted">{t("chooseMunicipality")}</div>
               <select
-                className="input"
+                id="field-municipality_id"
+                className={inputClass("municipality_id")}
                 value={formMunicipalityId === "" ? "" : String(formMunicipalityId)}
-                onChange={(e) => setFormMunicipalityId(e.target.value === "" ? "" : Number(e.target.value))}
+                onChange={(e) => {
+                  setFormMunicipalityId(e.target.value === "" ? "" : Number(e.target.value));
+                  form.clearField("municipality_id");
+                }}
+                aria-invalid={form.hasFieldError("municipality_id")}
               >
                 <option value="">{t("chooseMunicipality")}</option>
                 {municipalities.map((m) => (
@@ -337,37 +358,86 @@ export function AdminCommuneItStaffPage({ token }: { token: string }) {
                   </option>
                 ))}
               </select>
+              <FieldErrorText message={form.fieldErrorText("municipality_id", t)} />
             </label>
             <label className="field">
               <div className="muted">{t("itStaffFirstName")}</div>
-              <input className="input" value={formFirst} onChange={(e) => setFormFirst(e.target.value)} />
+              <input
+                id="field-first_name"
+                className={inputClass("first_name")}
+                value={formFirst}
+                onChange={(e) => {
+                  setFormFirst(e.target.value);
+                  form.clearField("first_name");
+                }}
+              />
+              <FieldErrorText message={form.fieldErrorText("first_name", t)} />
             </label>
             <label className="field">
               <div className="muted">{t("itStaffLastName")}</div>
-              <input className="input" value={formLast} onChange={(e) => setFormLast(e.target.value)} />
+              <input
+                id="field-last_name"
+                className={inputClass("last_name")}
+                value={formLast}
+                onChange={(e) => {
+                  setFormLast(e.target.value);
+                  form.clearField("last_name");
+                }}
+              />
+              <FieldErrorText message={form.fieldErrorText("last_name", t)} />
             </label>
             <label className="field">
               <div className="muted">{t("itStaffNin")}</div>
-              <input className="input" value={formNin} onChange={(e) => setFormNin(e.target.value)} />
+              <input id="field-nin" className={inputClass("nin")} value={formNin} onChange={(e) => setFormNin(e.target.value)} />
+              <FieldErrorText message={form.fieldErrorText("nin", t)} />
             </label>
             <label className="field">
               <div className="muted">{t("itStaffPhone")}</div>
-              <input className="input" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} />
+              <input
+                id="field-phone"
+                className={inputClass("phone")}
+                value={formPhone}
+                onChange={(e) => {
+                  setFormPhone(e.target.value);
+                  form.clearField("phone");
+                }}
+              />
+              <FieldErrorText message={form.fieldErrorText("phone", t)} />
             </label>
             <label className="field">
               <div className="muted">{t("itStaffEmail")}</div>
-              <input className="input" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} />
+              <input
+                id="field-email"
+                className={inputClass("email")}
+                value={formEmail}
+                onChange={(e) => {
+                  setFormEmail(e.target.value);
+                  form.clearField("email");
+                }}
+              />
+              <FieldErrorText message={form.fieldErrorText("email", t)} />
             </label>
             <label className="field">
               <div className="muted">{t("itStaffLangs")}</div>
-              <textarea className="input" rows={3} value={formLangs} onChange={(e) => setFormLangs(e.target.value)} />
+              <textarea
+                id="field-programming_languages"
+                className={inputClass("programming_languages")}
+                rows={3}
+                value={formLangs}
+                onChange={(e) => {
+                  setFormLangs(e.target.value);
+                  form.clearField("programming_languages");
+                }}
+              />
+              <FieldErrorText message={form.fieldErrorText("programming_languages", t)} />
             </label>
+            <FormErrorBlock message={form.formError} />
             <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button type="button" className="btn" onClick={() => setModalOpen(false)}>
+              <button type="button" className="btn" onClick={() => setModalOpen(false)} disabled={saving}>
                 {t("cancel")}
               </button>
-              <button type="button" className="btn btnPrimary" onClick={() => saveModal().catch(() => {})}>
-                {t("submit")}
+              <button type="button" className="btn btnPrimary" onClick={() => void saveModal()} disabled={saving}>
+                {saving ? "..." : t("submit")}
               </button>
             </div>
           </div>

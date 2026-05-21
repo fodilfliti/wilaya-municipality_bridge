@@ -39,7 +39,8 @@ function normalizeMuniInput(entry) {
   return {
     municipality_annex_id: Number.isFinite(annexId) && annexId > 0 ? annexId : null,
     pc_used: trimText(entry.pc_used, 500),
-    ip_requested: trimText(entry.ip_requested, 500)
+    ip_requested: trimText(entry.ip_requested, 500),
+    authorization_year: trimText(entry.authorization_year, 20)
   };
 }
 
@@ -197,14 +198,20 @@ async function syncLinesForMunicipality(municipalityId, lines, editorUserId, sub
       } else {
         fields = normalizeMuniInput(raw);
         if (existingRow) {
-          fields.ip_authorized = existingRow.ip_authorized;
-          fields.authorization_year = existingRow.authorization_year;
+          const prevIp = trimText(existingRow.ip_requested, 500) || "";
+          const nextIp = fields.ip_requested || "";
+          if (prevIp !== nextIp) {
+            fields.rnc_auth_status = "none";
+            fields.rnc_auth_requested_at = null;
+            fields.ip_authorized = null;
+          } else {
+            fields.rnc_auth_status = existingRow.rnc_auth_status;
+            fields.rnc_auth_requested_at = existingRow.rnc_auth_requested_at;
+            fields.ip_authorized = existingRow.ip_authorized;
+          }
           fields.authorized_ip_count = existingRow.authorized_ip_count;
-          fields.rnc_auth_status = existingRow.rnc_auth_status;
-          fields.rnc_auth_requested_at = existingRow.rnc_auth_requested_at;
         } else {
           fields.ip_authorized = null;
-          fields.authorization_year = null;
           fields.authorized_ip_count = null;
           fields.rnc_auth_status = "none";
           fields.rnc_auth_requested_at = null;
@@ -213,6 +220,9 @@ async function syncLinesForMunicipality(municipalityId, lines, editorUserId, sub
 
       if (!fields.municipality_annex_id) {
         throw httpError(400, "Annex is required for each line");
+      }
+      if (!wilayaMode && !fields.ip_requested) {
+        throw httpError(400, "annexRncIpRequestedRequired");
       }
       await assertAnnexBelongsToMunicipality(fields.municipality_annex_id, municipalityId);
 
@@ -310,7 +320,7 @@ async function requestRncAuthorization(userId, lineId) {
   }
 
   const ipReq = trimText(row.ip_requested, 500);
-  if (!ipReq) throw httpError(400, "Requested IP is required before requesting authorization");
+  if (!ipReq) throw httpError(400, "annexRncIpRequestedRequired");
 
   const st = String(row.rnc_auth_status || "none");
   if (st === "pending") throw httpError(400, "Authorization request already pending");

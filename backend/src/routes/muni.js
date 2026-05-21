@@ -30,6 +30,7 @@ const { storageRoot, publicFileUrl } = require("../services/storage");
 const { operationsMuniRouter } = require("./operationsMuni");
 const { etatPrincipaleMuniRouter } = require("./etatPrincipaleMuni");
 const { communeItStaffMuniRouter } = require("./communeItStaffMuni");
+const { announcementsMuniRouter } = require("./announcementsMuni");
 const municipalityAnnexService = require("../modules/annexes/municipalityAnnexService");
 const mailSendRequestService = require("../modules/mail/mailSendRequestService");
 const { createMailValidationRouter } = require("./mailValidation");
@@ -46,6 +47,7 @@ muniRouter.use(
 muniRouter.use(operationsMuniRouter);
 muniRouter.use(etatPrincipaleMuniRouter);
 muniRouter.use(communeItStaffMuniRouter);
+muniRouter.use(announcementsMuniRouter);
 
 muniRouter.get("/annexes", async (req, res, next) => {
   try {
@@ -107,14 +109,13 @@ muniRouter.use("/mail", createMailValidationRouter({ uploadMailAttachments }));
 // List wilaya admins for commune selection (no search needed)
 muniRouter.get("/wilaya-admins", async (req, res, next) => {
   try {
+    const { mapUsersForMailPicker } = require("../modules/mail/mailPickerUserDto");
     const admins = await User.findAll({
       where: { role: "SUPER_ADMIN" },
-      attributes: ["id", "name", "role"],
+      attributes: ["id", "name", "username", "role", "job_title"],
       order: [["id", "ASC"]],
     });
-    res.json({
-      admins: admins.map((u) => ({ id: u.id, name: u.name, role: u.role })),
-    });
+    res.json({ admins: await mapUsersForMailPicker(admins) });
   } catch (e) {
     next(e);
   }
@@ -673,6 +674,8 @@ muniRouter.get(
 
       const wilaya = rows
         .filter((r) => r.user?.role === "SUPER_ADMIN")
+        // Security: commune should only see admins that actually opened (seen) this thread
+        .filter((r) => !!r.first_seen_at)
         .map((r) => ({
           user: safeUserForMuni(r.user),
           first_seen_at: r.first_seen_at,

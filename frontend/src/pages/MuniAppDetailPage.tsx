@@ -58,7 +58,7 @@ export function MuniAppDetailPage({ token }: { token: string }) {
 
   return (
     <div className="card">
-      <div className="row" style={{ justifyContent: "space-between" }}>
+      <div className="row" style={{ justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
         <div className="row" style={{ gap: 12, alignItems: "center" }}>
           {app?.logo_url ? (
             <img

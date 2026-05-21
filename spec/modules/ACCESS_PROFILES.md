@@ -139,6 +139,8 @@ Unique: `(user_id, permission_key)`.
 | `commune_it_staff.manage` | both | commune_it_staff | IT commune — gérer |
 | `commune_it_staff.export` | wilaya | commune_it_staff | IT commune — exporter |
 | `users.email.view_others` | wilaya | organization | Voir e-mail des autres comptes |
+| `announcements.view` | both | announcements | Annonces — consulter |
+| `announcements.manage` | wilaya | announcements | Annonces — gérer |
 
 When adding a new module, **add keys here and in `permissionCatalog.js`** before shipping.
 

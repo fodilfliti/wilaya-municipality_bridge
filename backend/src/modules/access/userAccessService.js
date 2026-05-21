@@ -29,12 +29,25 @@ function templatePermissionsToMap(rows) {
   return m;
 }
 
+function accessProfileLoaded(user) {
+  if (!user?.role) return false;
+  if (!user.access_role_template_id) return true;
+  const tplPerms = user.accessRoleTemplate?.permissions ?? user.AccessRoleTemplate?.permissions;
+  if (!tplPerms) return false;
+  if (user.use_custom_permissions && user.permissionOverrides == null) return false;
+  return true;
+}
+
 /**
  * Effective permission map for a user. Keys → none | view | manage.
  * Users without template: legacy full access (all applicable keys = manage).
  */
 async function resolveEffectivePermissions(userOrId) {
-  const user = typeof userOrId === "object" && userOrId?.role ? userOrId : await loadUserWithAccess(userOrId);
+  let user = typeof userOrId === "object" && userOrId?.role ? userOrId : null;
+  if (!user || !accessProfileLoaded(user)) {
+    const id = user?.id ?? userOrId;
+    user = await loadUserWithAccess(id);
+  }
   if (!user) return {};
 
   const accountRole = user.role;

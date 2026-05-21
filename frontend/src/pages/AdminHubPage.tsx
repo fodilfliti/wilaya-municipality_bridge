@@ -143,6 +143,13 @@ export function AdminHubPage({
             icon: "\u{1F4BB}",
             permissionKey: "commune_it_staff.view",
           },
+          {
+            to: "/announcements",
+            titleKey: "tileAnnouncementsTitle",
+            descKey: "tileAnnouncementsDesc",
+            icon: "\u{1F4E2}",
+            permissionKey: "announcements.view",
+          },
         ],
         can,
       ),

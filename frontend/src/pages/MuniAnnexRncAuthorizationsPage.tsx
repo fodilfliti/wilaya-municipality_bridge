@@ -6,10 +6,14 @@ import {
   MuniEtatPrincipalWorkflow,
   MuniEtatRncStepHeader,
 } from '../components/MuniEtatPrincipalWorkflow'
+import { FormErrorBlock, FieldErrorText } from '../components/FormErrorBlock'
 import { triggerBlobDownload } from '../operations/format'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { BackButton } from '../components/BackButton'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
+import { useZodForm } from '../validation/useZodForm'
+import { annexRncMuniSaveSchema } from '../validation/schemas/annexRnc'
+import { filterDigits } from '../utils/digitsOnly'
 
 function rncLabel(st: string, t: (k: string) => string) {
   if (st === 'pending') return t('mcltRncPending')
@@ -31,17 +35,47 @@ function emptyLine(annexId: number): api.AnnexRncLine {
   }
 }
 
+function lineFieldPath(i: number, field: 'ip_requested' | 'municipality_annex_id') {
+  return `lines.${i}.${field}`
+}
+
+function lineFieldId(i: number, field: 'ip_requested' | 'municipality_annex_id') {
+  return `field-lines-${i}-${field}`
+}
+
 export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language === 'fr' ? 'fr' : 'ar'
   const snack = useSnackbar()
+  const saveForm = useZodForm(annexRncMuniSaveSchema)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lines, setLines] = useState<api.AnnexRncLine[]>([])
   const [annexes, setAnnexes] = useState<Array<{ id: number; name: string }>>([])
   const [saving, setSaving] = useState(false)
   const [muniLabel, setMuniLabel] = useState('')
-  const [requestingId, setRequestingId] = useState<number | null>(null)
+  const [requestingIndex, setRequestingIndex] = useState<number | null>(null)
+  /** Last saved IP per line id — used to detect edits that require a new RNC request */
+  const [savedIpByLineId, setSavedIpByLineId] = useState<Record<number, string>>({})
+
+  function indexSavedIps(rows: api.AnnexRncLine[]) {
+    const m: Record<number, string> = {}
+    for (const l of rows) {
+      if (l.id > 0) m[l.id] = (l.ip_requested || '').trim()
+    }
+    return m
+  }
+
+  function ipChangedFromSaved(line: api.AnnexRncLine) {
+    if (line.id <= 0) return true
+    const saved = savedIpByLineId[line.id]
+    return (line.ip_requested || '').trim() !== (saved ?? '')
+  }
+
+  function canRequestRnc(line: api.AnnexRncLine) {
+    if (ipChangedFromSaved(line)) return true
+    return line.rnc_auth_status === 'none' || line.rnc_auth_status === 'rejected'
+  }
 
   async function load() {
     setError(null)
@@ -51,7 +85,9 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
       const ax = res.annexes || []
       setAnnexes(ax)
       const rows = res.lines || []
-      setLines(rows.length ? rows : ax.length ? [emptyLine(ax[0].id)] : [])
+      const nextLines = rows.length ? rows : ax.length ? [emptyLine(ax[0].id)] : []
+      setLines(nextLines)
+      setSavedIpByLineId(indexSavedIps(nextLines))
       const m = res.municipality
       setMuniLabel(m ? (lang === 'fr' ? m.name_fr : m.name_ar) : '')
     } catch (e: unknown) {
@@ -70,6 +106,8 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
   }, [token])
 
   function updateLine(i: number, patch: Partial<api.AnnexRncLine>) {
+    if ('ip_requested' in patch) saveForm.clearField(lineFieldPath(i, 'ip_requested'))
+    if ('municipality_annex_id' in patch) saveForm.clearField(lineFieldPath(i, 'municipality_annex_id'))
     setLines((prev) =>
       prev.map((l, j) => {
         if (j !== i) return l
@@ -77,6 +115,13 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
         if (patch.municipality_annex_id != null) {
           const ax = annexes.find((a) => a.id === patch.municipality_annex_id)
           next.annex_name = ax?.name ?? l.annex_name
+        }
+        if ('ip_requested' in patch && l.id > 0 && ipChangedFromSaved({ ...l, ip_requested: patch.ip_requested ?? null })) {
+          const st = l.rnc_auth_status
+          if (st === 'pending' || st === 'approved' || st === 'rejected') {
+            next.rnc_auth_status = 'none'
+            next.ip_authorized = null
+          }
         }
         return next
       }),
@@ -102,17 +147,42 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
       id: l.id > 0 ? l.id : undefined,
       municipality_annex_id: l.municipality_annex_id,
       pc_used: l.pc_used?.trim() || null,
+      authorization_year: l.authorization_year?.trim() || null,
       ip_requested: l.ip_requested?.trim() || null,
     }))
   }
 
+  function buildValidationPayload() {
+    return {
+      lines: lines.map((l) => ({
+        municipality_annex_id: l.municipality_annex_id || '',
+        ip_requested: l.ip_requested?.trim() || '',
+      })),
+    }
+  }
+
+  function saveValidationFieldIds() {
+    const ids: string[] = []
+    for (let i = 0; i < lines.length; i++) {
+      ids.push(lineFieldId(i, 'municipality_annex_id'), lineFieldId(i, 'ip_requested'))
+    }
+    return ids
+  }
+
+  function inputClass(path: string) {
+    return saveForm.hasFieldError(path) ? 'input inputInvalid' : 'input'
+  }
+
   async function saveDraft() {
     setError(null)
+    if (!saveForm.validate(buildValidationPayload(), t, saveValidationFieldIds())) return
     setSaving(true)
     try {
       const res = await api.muniAnnexRncPatch(token, { lines: buildLinesPayload() })
       setAnnexes(res.annexes || [])
-      setLines((res.lines || []).length ? res.lines : res.annexes?.length ? [emptyLine(res.annexes[0].id)] : [])
+      const nextLines = (res.lines || []).length ? res.lines : res.annexes?.length ? [emptyLine(res.annexes[0].id)] : []
+      setLines(nextLines)
+      setSavedIpByLineId(indexSavedIps(nextLines))
       snack.show(t('snackbarSaved'), 'success')
     } catch (e: unknown) {
       const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
@@ -124,21 +194,52 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
     }
   }
 
-  async function requestRnc(line: api.AnnexRncLine, index: number) {
-    if (line.id <= 0) {
-      snack.show(t('annexRncSaveBeforeRnc'), 'info')
+  async function requestRnc(index: number) {
+    const line = lines[index]
+    if (!line) return
+    const payload = buildValidationPayload()
+    const oneLine = {
+      lines: [
+        {
+          municipality_annex_id: payload.lines[index]?.municipality_annex_id ?? '',
+          ip_requested: payload.lines[index]?.ip_requested ?? '',
+        },
+      ],
+    }
+    if (!saveForm.validate(oneLine, t, [lineFieldId(index, 'municipality_annex_id'), lineFieldId(index, 'ip_requested')])) {
       return
     }
-    setRequestingId(line.id)
+    setRequestingIndex(index)
+    setError(null)
     try {
-      const res = await api.muniAnnexRncRequestAuthorization(token, line.id)
-      updateLine(index, res.line)
+      const saveRes = await api.muniAnnexRncPatch(token, { lines: buildLinesPayload() })
+      const nextLines = (saveRes.lines || []).length
+        ? saveRes.lines
+        : saveRes.annexes?.length
+          ? [emptyLine(saveRes.annexes[0].id)]
+          : []
+      setAnnexes(saveRes.annexes || [])
+      setLines(nextLines)
+      setSavedIpByLineId(indexSavedIps(nextLines))
+      const savedLine = nextLines[index]
+      if (!savedLine?.id) {
+        snack.show(t('annexRncSaveBeforeRnc'), 'error')
+        return
+      }
+      const res = await api.muniAnnexRncRequestAuthorization(token, savedLine.id)
+      setLines((prev) => prev.map((l, j) => (j === index ? res.line : l)))
+      setSavedIpByLineId((prev) => ({
+        ...prev,
+        [res.line.id]: (res.line.ip_requested || '').trim(),
+      }))
       snack.show(t('annexRncRequestRncDone'), 'success')
     } catch (e: unknown) {
       const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
-      snack.show(formatApiErrorMessage(raw, t), 'error')
+      const msg = formatApiErrorMessage(raw, t)
+      setError(msg)
+      snack.show(msg, 'error')
     } finally {
-      setRequestingId(null)
+      setRequestingIndex(null)
     }
   }
 
@@ -175,10 +276,16 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
         <div className="row">
           <button
             type="button"
-            className="btn"
-            onClick={() =>
-              api.downloadMuniAnnexRncXlsx(token, lang).then(({ blob, filename }) => triggerBlobDownload(blob, filename))
-            }
+            className="btn btnExcel"
+            onClick={() => {
+              void api
+                .downloadMuniAnnexRncXlsx(token, lang)
+                .then(({ blob, filename }) => triggerBlobDownload(blob, filename))
+                .catch((e: unknown) => {
+                  const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'VALIDATION_ERROR')
+                  snack.show(formatApiErrorMessage(raw, t), 'error')
+                })
+            }}
           >
             {t('annexRncExportCommune')}
           </button>
@@ -190,6 +297,7 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
       <p className="muted">{t('annexRncMuniIntro')}</p>
 
       {error ? <div className="muted" style={{ marginTop: 10 }}>{error}</div> : null}
+      <FormErrorBlock message={saveForm.formError} />
 
       <MuniEtatPrincipalWorkflow
         saving={saving}
@@ -213,7 +321,8 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
               <label className="field">
                 <div className="muted">{t('annexRncColAnnex')}</div>
                 <select
-                  className="input"
+                  id={lineFieldId(i, 'municipality_annex_id')}
+                  className={inputClass(lineFieldPath(i, 'municipality_annex_id'))}
                   value={line.municipality_annex_id || ''}
                   onChange={(e) => updateLine(i, { municipality_annex_id: Number(e.target.value) })}
                 >
@@ -224,45 +333,60 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="field">
-                <div className="muted">{t('annexRncColIpReq')}</div>
-                <input
-                  className="input"
-                  value={line.ip_requested || ''}
-                  onChange={(e) => updateLine(i, { ip_requested: e.target.value })}
-                />
+                <FieldErrorText message={saveForm.fieldErrorText(lineFieldPath(i, 'municipality_annex_id'), t)} />
               </label>
               <label className="field">
                 <div className="muted">{t('annexRncColPcUsed')}</div>
                 <input className="input" value={line.pc_used || ''} onChange={(e) => updateLine(i, { pc_used: e.target.value })} />
               </label>
-              {line.ip_authorized ? (
-                <div className="muted">
-                  {t('annexRncColIpAuth')}: <strong>{line.ip_authorized}</strong>
-                  {line.authorization_year ? ` · ${t('annexRncColYear')}: ${line.authorization_year}` : ''}
-                  {line.authorized_ip_count ? ` · ${t('annexRncColIpCount')}: ${line.authorized_ip_count}` : ''}
-                </div>
-              ) : null}
-              {(line.rnc_auth_status === 'none' || line.rnc_auth_status === 'rejected') ? (
-                <>
-              <MuniEtatRncStepHeader />
-              {line.id > 0 ? (
-                <button
-                  type="button"
-                  className="btn btnSmall btnPrimary"
-                  disabled={requestingId === line.id}
-                  onClick={() => requestRnc(line, i)}
-                >
-                  {t('annexRncRequestRnc')}
-                </button>
-              ) : (
-                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                  {t('annexRncSaveBeforeRnc')}
-                </p>
-              )}
-                </>
-              ) : null}
+              <label className="field">
+                <div className="muted">{t('annexRncColYear')}</div>
+                <input
+                  className="input"
+                  value={line.authorization_year || ''}
+                  onChange={(e) => updateLine(i, { authorization_year: filterDigits(e.target.value, 20) })}
+                  placeholder="2024"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                />
+              </label>
+
+              <div className="etatMuniRncBlock">
+                <label className="field">
+                  <div className="muted">{t('annexRncColIpReq')}</div>
+                  <input
+                    id={lineFieldId(i, 'ip_requested')}
+                    className={inputClass(lineFieldPath(i, 'ip_requested'))}
+                    value={line.ip_requested || ''}
+                    onChange={(e) => updateLine(i, { ip_requested: e.target.value })}
+                    aria-invalid={saveForm.hasFieldError(lineFieldPath(i, 'ip_requested'))}
+                  />
+                  <FieldErrorText message={saveForm.fieldErrorText(lineFieldPath(i, 'ip_requested'), t)} />
+                </label>
+                {line.ip_authorized ? (
+                  <div className="muted">
+                    {t('annexRncColIpAuth')}: <strong>{line.ip_authorized}</strong>
+                  </div>
+                ) : null}
+                {canRequestRnc(line) ? (
+                  <>
+                    <MuniEtatRncStepHeader />
+                    {ipChangedFromSaved(line) && line.id > 0 && line.rnc_auth_status !== 'none' ? (
+                      <p className="muted" style={{ margin: '0 0 6px', fontSize: 13 }}>
+                        {t('annexRncIpChangedReRequest')}
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="btn btnSmall btnPrimary"
+                      disabled={saving || requestingIndex !== null}
+                      onClick={() => requestRnc(i)}
+                    >
+                      {requestingIndex === i ? '…' : t('annexRncRequestRnc')}
+                    </button>
+                  </>
+                ) : null}
+              </div>
               <div className="etatMuniLineFooter">
                 <button type="button" className="btn btnSmall" disabled={lines.length <= 1} onClick={() => removeLine(i)}>
                   {t('annexRncRemoveLine')}

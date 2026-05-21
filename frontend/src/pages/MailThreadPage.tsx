@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import * as api from '../api'
 import { BackButton } from '../components/BackButton'
 import { Modal } from '../components/Modal'
@@ -28,6 +28,7 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
   const [error, setError] = useState<string | null>(null)
 
   const [replyMode, setReplyMode] = useState<'GROUP' | 'PRIVATE'>('GROUP')
+  const [composerOpen, setComposerOpen] = useState(false)
   const [composerHtml, setComposerHtml] = useState('')
   const [composerFiles, setComposerFiles] = useState<File[]>([])
   const [busySend, setBusySend] = useState(false)
@@ -145,6 +146,15 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, mode, token])
 
+  // If we are already inside a private thread, do not offer "create another private thread".
+  useEffect(() => {
+    if (mode !== 'muni') return
+    if (!detail?.thread) return
+    if (detail.thread.parentThread) {
+      setReplyMode('GROUP')
+    }
+  }, [detail?.thread, mode])
+
   if (!id) {
     return (
       <div className="card">
@@ -194,6 +204,19 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
       {error ? (
         <div className="statusPill stNever" style={{ marginBottom: 10 }}>
           {error}
+        </div>
+      ) : null}
+
+      {detail?.thread?.parentThread ? (
+        <div className="mailVisibilityBanner mailVisibilityBannerPrivate" style={{ marginBottom: 10 }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>{t('mailPrivateThreadBanner')}</div>
+          <Link className="btn btnSoft btnSmall" to={`/mail/${detail.thread.parentThread.id}`}>
+            {t('mailLinkToOriginalThread', { subject: detail.thread.parentThread.subject })}
+          </Link>
+        </div>
+      ) : mode === 'muni' && detail ? (
+        <div className="mailVisibilityBanner mailVisibilityBannerInfo" style={{ marginBottom: 10 }}>
+          {t('mailThreadAudienceBanner')}
         </div>
       ) : null}
 
@@ -262,8 +285,7 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
                       onClick={() => {
                         setReplyTo(m)
                         setReplyMode('GROUP')
-                        const el = document.querySelector('.rteEditor') as HTMLElement | null
-                        if (el) el.focus()
+                        setComposerOpen(true)
                       }}
                     >
                       {t('mailReplyToMessage')}
@@ -274,103 +296,138 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
             })}
           </div>
 
-          <div className="card cardSubtle" style={{ marginTop: 12 }}>
-            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-              <div className="title" style={{ margin: 0 }}>
-                {mode === 'admin' ? t('mailReply') : replyMode === 'GROUP' ? t('mailReplyGroup') : t('mailPrivateReply')}
+          <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+            <button className="btn btnPrimary" type="button" onClick={() => setComposerOpen(true)}>
+              {t('mailOpenReply')}
+            </button>
+          </div>
+        </>
+      )}
+
+      {detail && composerOpen ? (
+        <Modal title={t('mailReply')} onClose={() => setComposerOpen(false)}>
+          {mode === 'muni' && !detail.thread?.parentThread ? (
+            <div style={{ marginBottom: 12 }}>
+              <div className="muted" style={{ fontSize: 13, fontWeight: 900, marginBottom: 8 }}>
+                {t('mailReplyModeLabel')}{' '}
+                <span className={`statusPill ${replyMode === 'PRIVATE' ? 'stNever' : 'stOk'}`}>
+                  {replyMode === 'PRIVATE' ? t('mailPrivateReplyTitle') : t('mailReplyGroupTitle')}
+                </span>
               </div>
-              {mode === 'muni' ? (
-                <div className="row" style={{ gap: 8 }}>
-                  <button className={`btn ${replyMode === 'GROUP' ? 'btnPrimary' : ''}`} onClick={() => setReplyMode('GROUP')}>
-                    {t('mailReplyGroup')}
-                  </button>
-                  <button className={`btn ${replyMode === 'PRIVATE' ? 'btnPrimary' : ''}`} onClick={() => setReplyMode('PRIVATE')}>
-                    {t('mailPrivateReply')}
-                  </button>
-                </div>
-              ) : null}
+              <div className="mailReplyModeGrid">
+                <button
+                  type="button"
+                  className={`mailReplyModeCard ${replyMode === 'GROUP' ? 'mailReplyModeCardActive' : ''}`}
+                  onClick={() => setReplyMode('GROUP')}
+                >
+                  <div className="mailReplyModeTitle">{t('mailReplyGroupTitle')}</div>
+                  <div className="mailReplyModeDesc">{t('mailReplyGroupDesc')}</div>
+                </button>
+                <button
+                  type="button"
+                  className={`mailReplyModeCard ${replyMode === 'PRIVATE' ? 'mailReplyModeCardActive' : ''}`}
+                  onClick={() => setReplyMode('PRIVATE')}
+                >
+                  <div className="mailReplyModeTitle">{t('mailPrivateReplyTitle')}</div>
+                  <div className="mailReplyModeDesc">{t('mailPrivateReplyDesc')}</div>
+                </button>
+              </div>
             </div>
+          ) : null}
 
-            {mode === 'muni' && replyMode === 'PRIVATE' ? (
-              <div className="muted" style={{ marginBottom: 8 }}>
-                {t('mailPrivateReplyHint')}
-              </div>
-            ) : null}
+          {mode === 'muni' && replyMode === 'PRIVATE' && !detail.thread?.parentThread ? (
+            <div className="mailVisibilityBanner mailVisibilityBannerWarn" style={{ marginBottom: 12 }}>
+              {t('mailPrivateReplyWarning')}
+            </div>
+          ) : null}
 
-            {replyTo ? (
-              <div className="mailQuote" style={{ marginBottom: 10 }}>
-                <div className="row" style={{ justifyContent: 'space-between', marginBottom: 4 }}>
-                  <div className="muted" style={{ fontSize: 12, fontWeight: 900 }}>
-                    {t('mailReplyingTo', {
-                      who: `${
-                        replyTo.authorMunicipality
-                          ? isFr
-                            ? replyTo.authorMunicipality.name_fr
-                            : replyTo.authorMunicipality.name_ar
-                          : ''
-                      }${replyTo.authorMunicipality ? ' — ' : ''}${replyTo.authorUser?.name || replyTo.authorUser?.username || '—'}`,
-                    })}
-                  </div>
-                  <button className="btn" onClick={() => setReplyTo(null)}>
-                    {t('cancel')}
-                  </button>
+          {replyTo ? (
+            <div className="mailQuote" style={{ marginBottom: 12 }}>
+              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 4 }}>
+                <div className="muted" style={{ fontSize: 12, fontWeight: 900 }}>
+                  {t('mailReplyingTo', {
+                    who: `${
+                      replyTo.authorMunicipality
+                        ? isFr
+                          ? replyTo.authorMunicipality.name_fr
+                          : replyTo.authorMunicipality.name_ar
+                        : ''
+                    }${replyTo.authorMunicipality ? ' — ' : ''}${replyTo.authorUser?.name || replyTo.authorUser?.username || '—'}`,
+                  })}
                 </div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {String(replyTo.body_html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)}
-                </div>
+                <button className="btn" onClick={() => setReplyTo(null)}>
+                  {t('cancel')}
+                </button>
               </div>
-            ) : null}
+              <div className="muted" style={{ fontSize: 12 }}>
+                {String(replyTo.body_html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)}
+              </div>
+            </div>
+          ) : null}
 
-            <RichTextEditor html={composerHtml} onChange={setComposerHtml} placeholder={t('mailBodyPh')} />
-            <div className="row" style={{ marginTop: 10, justifyContent: 'space-between' }}>
-              <input className="input" type="file" multiple onChange={(e) => setComposerFiles(Array.from(e.target.files || []))} />
-              <button
-                className="btn btnPrimary"
-                disabled={busySend}
-                onClick={async () => {
-                  const b = composerHtml.trim()
-                  if (!b) return setError(t('mailBodyRequired'))
-                  setBusySend(true)
-                  try {
-                    if (mode === 'admin') {
-                      await api.adminMailReply(token, id, { body_html: b, attachments: composerFiles, reply_to_message_id: replyTo?.id || null })
+          <RichTextEditor html={composerHtml} onChange={setComposerHtml} placeholder={t('mailBodyPh')} />
+          <div className="row" style={{ marginTop: 10, justifyContent: 'space-between' }}>
+            <input className="input" type="file" multiple onChange={(e) => setComposerFiles(Array.from(e.target.files || []))} />
+            <button
+              className="btn btnPrimary"
+              disabled={busySend}
+              onClick={async () => {
+                const b = composerHtml.trim()
+                if (!b) return setError(t('mailBodyRequired'))
+                setBusySend(true)
+                try {
+                  if (mode === 'admin') {
+                    await api.adminMailReply(token, id, { body_html: b, attachments: composerFiles, reply_to_message_id: replyTo?.id || null })
+                    setComposerHtml('')
+                    setComposerFiles([])
+                    setReplyTo(null)
+                    await load()
+                    setComposerOpen(false)
+                  } else {
+                    if (replyMode === 'GROUP' || detail.thread?.parentThread) {
+                      await api.muniMailReply(token, id, { body_html: b, attachments: composerFiles, reply_to_message_id: replyTo?.id || null })
                       setComposerHtml('')
                       setComposerFiles([])
                       setReplyTo(null)
                       await load()
+                      snack.show(t('mailReplySentOk'), 'success')
+                      setComposerOpen(false)
                     } else {
-                      if (replyMode === 'GROUP') {
-                        await api.muniMailReply(token, id, { body_html: b, attachments: composerFiles, reply_to_message_id: replyTo?.id || null })
-                        setComposerHtml('')
-                        setComposerFiles([])
-                        setReplyTo(null)
-                        await load()
-                      } else {
-                        const res = await api.muniMailPrivateReply(token, id, {
-                          subject: detail?.thread?.subject ? `Re (private): ${detail.thread.subject}` : undefined,
-                          body_html: b,
-                          attachments: composerFiles,
-                          parent_message_id: replyTo?.id || null,
-                        })
-                        setComposerHtml('')
-                        setComposerFiles([])
-                        setReplyTo(null)
-                        if (res.thread?.id) nav(`/mail/${res.thread.id}`)
+                      const res = await api.muniMailPrivateReply(token, id, {
+                        subject: detail?.thread?.subject ? `Re (private): ${detail.thread.subject}` : undefined,
+                        body_html: b,
+                        attachments: composerFiles,
+                        parent_message_id: replyTo?.id || null,
+                      })
+                      setComposerHtml('')
+                      setComposerFiles([])
+                      setReplyTo(null)
+                      setComposerOpen(false)
+                      if (res.thread?.id) {
+                        snack.show(t('mailPrivateCreatedOk'), 'success')
+                        nav(`/mail/${res.thread.id}`)
                       }
                     }
-                  } catch (e: any) {
-                    setError(e?.message || 'Erreur')
-                  } finally {
-                    setBusySend(false)
                   }
-                }}
-              >
-                {t('submit')}
-              </button>
-            </div>
+                } catch (e: unknown) {
+                  const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
+                  const msg = formatApiErrorMessage(raw, t)
+                  setError(msg)
+                  snack.show(msg, 'error')
+                } finally {
+                  setBusySend(false)
+                }
+              }}
+            >
+              {mode === 'admin'
+                ? t('submit')
+                : replyMode === 'PRIVATE' && !detail.thread?.parentThread
+                  ? t('mailSendPrivateReply')
+                  : t('mailSendGroupReply')}
+            </button>
           </div>
-        </>
-      )}
+        </Modal>
+      ) : null}
 
       {seenOpen ? (
         <Modal title={t('mailSeenBy')} error={seenError} onClose={() => setSeenOpen(false)}>
@@ -568,7 +625,9 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
             <div className="muted">{t('loading')}</div>
           ) : (
             <div className="grid" style={{ gap: 8 }}>
-              {wilayaRows.map((r, idx) => {
+              {wilayaRows
+                .filter((r) => !!r.first_seen_at)
+                .map((r, idx) => {
                 const u = r.user
                 const display = displayUser(u)
                 const seen = !!r.first_seen_at
@@ -589,7 +648,9 @@ export function MailThreadPage({ token, mode }: { token: string; mode: 'admin' |
                   </div>
                 )
               })}
-              {!wilayaRows.length ? <div className="muted">{t('noResults')}</div> : null}
+              {!wilayaRows.filter((r) => !!r.first_seen_at).length ? (
+                <div className="muted">{t('noResults')}</div>
+              ) : null}
             </div>
           )}
         </Modal>

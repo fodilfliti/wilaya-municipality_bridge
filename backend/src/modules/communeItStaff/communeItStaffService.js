@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const { CommuneItProfessional, Municipality } = require("../../db");
+const { V } = require("../../validation/errorKeys");
 
 const MUNI_INCLUDE = {
   model: Municipality,
@@ -50,20 +51,36 @@ function normalizePayload(body, { requireMunicipalityId }) {
   const email = emailRaw ? emailRaw.slice(0, 255) : null;
   const programming_languages = String(body?.programming_languages || "").trim();
 
-  if (!first_name) return { error: "first_name is required" };
-  if (!last_name) return { error: "last_name is required" };
-  if (first_name.length > 120) return { error: "first_name too long" };
-  if (last_name.length > 120) return { error: "last_name too long" };
-  if (!phone) return { error: "phone is required" };
-  if (!programming_languages) return { error: "programming_languages is required" };
-  if (programming_languages.length > 16000) return { error: "programming_languages too long" };
-  if (email && !EMAIL_RE.test(email)) return { error: "Invalid email format" };
+  if (!first_name) {
+    return { error: "VALIDATION_ERROR", status: 400, fieldErrors: { first_name: V.itStaffFirstNameRequired } };
+  }
+  if (!last_name) {
+    return { error: "VALIDATION_ERROR", status: 400, fieldErrors: { last_name: V.itStaffLastNameRequired } };
+  }
+  if (first_name.length > 120) {
+    return { error: "VALIDATION_ERROR", status: 400, fieldErrors: { first_name: V.maxLength } };
+  }
+  if (last_name.length > 120) {
+    return { error: "VALIDATION_ERROR", status: 400, fieldErrors: { last_name: V.maxLength } };
+  }
+  if (!phone) {
+    return { error: "VALIDATION_ERROR", status: 400, fieldErrors: { phone: V.itStaffPhoneRequired } };
+  }
+  if (!programming_languages) {
+    return { error: "VALIDATION_ERROR", status: 400, fieldErrors: { programming_languages: V.itStaffLangsRequired } };
+  }
+  if (programming_languages.length > 16000) {
+    return { error: "VALIDATION_ERROR", status: 400, fieldErrors: { programming_languages: V.maxLength } };
+  }
+  if (email && !EMAIL_RE.test(email)) {
+    return { error: "VALIDATION_ERROR", status: 400, fieldErrors: { email: V.invalidEmail } };
+  }
 
   let municipality_id = null;
   if (requireMunicipalityId) {
     municipality_id = Number(body?.municipality_id);
     if (!Number.isFinite(municipality_id) || municipality_id < 1) {
-      return { error: "municipality_id is required" };
+      return { error: "VALIDATION_ERROR", status: 400, fieldErrors: { municipality_id: V.itStaffMunicipalityRequired } };
     }
   }
 
@@ -74,7 +91,7 @@ function normalizePayload(body, { requireMunicipalityId }) {
 
 async function assertMunicipalityExists(id) {
   const m = await Municipality.findByPk(id);
-  if (!m) return { error: "Municipality not found", status: 404 };
+  if (!m) return { error: V.municipalityNotFound, status: 404 };
   return { municipality: m };
 }
 

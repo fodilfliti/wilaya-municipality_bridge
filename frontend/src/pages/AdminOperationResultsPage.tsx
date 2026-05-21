@@ -191,7 +191,7 @@ export function AdminOperationResultsPage({ token }: { token: string }) {
         <div className="row">
           <button
             type="button"
-            className="btn btnPrimary"
+            className="btn btnExcel"
             onClick={() =>
               exportXlsx().catch((e: unknown) => {
                 const raw =
@@ -299,7 +299,7 @@ export function AdminOperationResultsPage({ token }: { token: string }) {
         </div>
         <button
           type="button"
-          className="btn"
+          className="btn btnExcel"
           onClick={() =>
             exportSubmissionXlsx().catch((e: unknown) => {
               const raw =

@@ -1,5 +1,18 @@
 const express = require("express");
 const communeItStaffService = require("../modules/communeItStaff/communeItStaffService");
+const { validateBody } = require("../middleware/validateBody");
+const { communeItStaffBodySchema } = require("../validation/schemas/communeItStaff");
+
+function sendServiceError(res, out, req) {
+  if (out.fieldErrors) {
+    return res.status(out.status || 400).json({
+      error: "VALIDATION_ERROR",
+      fieldErrors: out.fieldErrors,
+      requestId: req.requestId
+    });
+  }
+  return res.status(out.status || 400).json({ error: out.error, requestId: req.requestId });
+}
 const { buildMuniExportBuffer } = require("../services/communeItStaffExcelExport");
 const {
   buildCommuneItStaffMuniXlsxFilename,
@@ -49,13 +62,13 @@ communeItStaffMuniRouter.get("/commune-it-staff/export.xlsx", async (req, res, n
   }
 });
 
-communeItStaffMuniRouter.post("/commune-it-staff", async (req, res, next) => {
+communeItStaffMuniRouter.post("/commune-it-staff", validateBody(communeItStaffBodySchema), async (req, res, next) => {
   try {
     if (req.user.role !== "MUNI_ADMIN" || !req.user.municipality_id) {
       return res.status(403).json({ error: "Only commune administrators can add rows" });
     }
-    const out = await communeItStaffService.createMuni(req.user.municipality_id, req.body || {});
-    if (out.error) return res.status(out.status).json({ error: out.error });
+    const out = await communeItStaffService.createMuni(req.user.municipality_id, req.validatedBody || {});
+    if (out.error) return sendServiceError(res, out, req);
     await audit(req.user.id, "COMMUNE_IT_STAFF_CREATE", { id: out.row.id, municipality_id: out.row.municipality_id }, { req });
     res.status(201).json(out);
   } catch (e) {
@@ -63,13 +76,16 @@ communeItStaffMuniRouter.post("/commune-it-staff", async (req, res, next) => {
   }
 });
 
-communeItStaffMuniRouter.patch("/commune-it-staff/:id", async (req, res, next) => {
+communeItStaffMuniRouter.patch(
+  "/commune-it-staff/:id",
+  validateBody(communeItStaffBodySchema.partial()),
+  async (req, res, next) => {
   try {
     if (req.user.role !== "MUNI_ADMIN" || !req.user.municipality_id) {
       return res.status(403).json({ error: "Only commune administrators can update rows" });
     }
-    const out = await communeItStaffService.updateMuni(req.user.municipality_id, req.params.id, req.body || {});
-    if (out.error) return res.status(out.status).json({ error: out.error });
+    const out = await communeItStaffService.updateMuni(req.user.municipality_id, req.params.id, req.validatedBody || {});
+    if (out.error) return sendServiceError(res, out, req);
     await audit(req.user.id, "COMMUNE_IT_STAFF_UPDATE", { id: out.row.id, municipality_id: out.row.municipality_id }, { req });
     res.json(out);
   } catch (e) {

@@ -46,6 +46,7 @@ const Department = require("./models/Department")(sequelize);
 const AccessRoleTemplate = require("./models/AccessRoleTemplate")(sequelize);
 const AccessRoleTemplatePermission = require("./models/AccessRoleTemplatePermission")(sequelize);
 const UserPermissionOverride = require("./models/UserPermissionOverride")(sequelize);
+const MunicipalityAnnouncement = require("./models/MunicipalityAnnouncement")(sequelize);
 
 // Associations
 Municipality.hasMany(User, { foreignKey: "municipality_id" });
@@ -265,6 +266,19 @@ CommuneItProfessional.belongsTo(Municipality, {
   as: "municipality",
 });
 
+Municipality.hasMany(MunicipalityAnnouncement, {
+  foreignKey: "municipality_id",
+  as: "announcements",
+});
+MunicipalityAnnouncement.belongsTo(Municipality, {
+  foreignKey: "municipality_id",
+  as: "municipality",
+});
+MunicipalityAnnouncement.belongsTo(User, {
+  foreignKey: "created_by_user_id",
+  as: "createdByUser",
+});
+
 module.exports = {
   sequelize,
   Municipality,
@@ -298,4 +312,5 @@ module.exports = {
   AccessRoleTemplate,
   AccessRoleTemplatePermission,
   UserPermissionOverride,
+  MunicipalityAnnouncement,
 };

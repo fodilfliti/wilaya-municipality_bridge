@@ -61,7 +61,9 @@ const DEFAULT_ROLE_PERMISSIONS = {
       "etat.annex_rnc.view": "view",
       "annexes.view": "view",
       "commune_it_staff.view": "view",
-      "commune_it_staff.export": "manage"
+      "commune_it_staff.export": "manage",
+      "announcements.view": "view",
+      "announcements.manage": "manage"
     },
     "SUPER_ADMIN"
   ),
@@ -125,7 +127,9 @@ const DEFAULT_ROLE_PERMISSIONS = {
       "annexes.manage": "manage",
       "commune_it_staff.view": "view",
       "commune_it_staff.manage": "manage",
-      "commune_it_staff.export": "manage"
+      "commune_it_staff.export": "manage",
+      "announcements.view": "view",
+      "announcements.manage": "manage"
     },
     "SUPER_ADMIN"
   ),
@@ -147,7 +151,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
       "annexes.view": "view",
       "annexes.status_update": "manage",
       "commune_it_staff.view": "view",
-      "commune_it_staff.manage": "manage"
+      "commune_it_staff.manage": "manage",
+      "announcements.view": "view"
     },
     "MUNI_ADMIN"
   ),
@@ -162,7 +167,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
       "etat.mclt.view": "view",
       "etat.annex_rnc.view": "view",
       "annexes.view": "view",
-      "commune_it_staff.view": "view"
+      "commune_it_staff.view": "view",
+      "announcements.view": "view"
     },
     "MUNI_ADMIN"
   ),
@@ -181,7 +187,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
       "etat.annex_rnc.view": "view",
       "etat.annex_rnc.fill": "manage",
       "annexes.view": "view",
-      "annexes.status_update": "manage"
+      "annexes.status_update": "manage",
+      "announcements.view": "view"
     },
     "MUNI_ADMIN"
   )

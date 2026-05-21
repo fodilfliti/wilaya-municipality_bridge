@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as api from '../api'
 import { DonutChart } from '../components/DonutChart'
-import { Modal } from '../components/Modal'
+import { EtatPrincipaleEditModal } from '../etatPrincipale/EtatPrincipaleEditModal'
 import { triggerBlobDownload } from '../operations/format'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
@@ -165,17 +165,30 @@ export function AdminMcltWorkstationsPage({ token }: { token: string }) {
   return (
     <div className="card">
       {edit ? (
-        <Modal
+        <EtatPrincipaleEditModal
           title={t('mcltAdminEditTitle', { code: edit.municipality.code })}
           error={modalError}
           onClose={() => {
             if (!saving) setEdit(null)
           }}
+          toolbar={
+            <>
+              <button type="button" className="btn" disabled={saving} onClick={() => addLine()}>
+                {t('mcltAddLine')}
+              </button>
+              <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn" disabled={saving} onClick={() => setEdit(null)}>
+                  {t('close')}
+                </button>
+                <button type="button" className="btn btnPrimary" disabled={saving} onClick={() => saveEdit()}>
+                  {t('save')}
+                </button>
+              </div>
+            </>
+          }
         >
-          <div style={{ maxWidth: 560, maxHeight: '70vh', overflowY: 'auto' }}>
-            <div className="grid" style={{ gap: 14 }}>
               {lines.map((line, i) => (
-                <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle" style={{ padding: 12 }}>
+                <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle etatModalLineCard">
                   <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <div style={{ fontWeight: 700 }}>{t('backupServersLineTitle', { n: i + 1 })}</div>
                     <div className="row" style={{ gap: 8, alignItems: 'center' }}>
@@ -190,7 +203,7 @@ export function AdminMcltWorkstationsPage({ token }: { token: string }) {
                     </button>
                     </div>
                   </div>
-                  <div className="grid" style={{ gap: 10 }}>
+                  <div className="etatMuniLineFields">
                     <label className="field">
                       <div className="muted">{t('mcltColIpMclt')}</div>
                       <input
@@ -273,20 +286,7 @@ export function AdminMcltWorkstationsPage({ token }: { token: string }) {
                   </div>
                 </div>
               ))}
-              <button type="button" className="btn" disabled={saving} onClick={() => addLine()}>
-                {t('mcltAddLine')}
-              </button>
-              <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
-                <button type="button" className="btn" disabled={saving} onClick={() => setEdit(null)}>
-                  {t('close')}
-                </button>
-                <button type="button" className="btn btnPrimary" disabled={saving} onClick={() => saveEdit()}>
-                  {t('save')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </Modal>
+        </EtatPrincipaleEditModal>
       ) : null}
 
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
@@ -300,7 +300,7 @@ export function AdminMcltWorkstationsPage({ token }: { token: string }) {
           <Can perm={P.manage}>
             <button
               type="button"
-              className="btn btnPrimary"
+              className="btn btnExcel"
               disabled={loading}
               onClick={() =>
                 exportXlsx().catch((e: unknown) => {
