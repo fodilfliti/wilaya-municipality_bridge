@@ -65,8 +65,8 @@
 
 - Hub: card under **« État principal »**; route `/etat-principale/backup-servers` (admin vs commune page by role).
 - Wilaya table: colour booleans, warm background for pending transmission, highlight non-empty **anomalie**; donuts for submission and boolean distributions; **Refresh** + **Export**.
-- Commune: status banner (transmitted / pending); multi-line server cards + add line + save + optional transmit + export. Line fields use a **responsive grid** (1→4 columns by viewport width); forms use full page width (no narrow max-width column).
-- Wilaya edit modal: **wide état modal** (`modalEtat`) — scrollable line list + **sticky toolbar** (add line, save, close always visible without scrolling to the bottom).
+- Commune: no commune name line on page (user already knows their commune); status banner (transmitted / pending); instructions in **`MuniEtatPrincipalWorkflow` steps guide** only (no separate intro line); **compact table** (one row per server, `table-layout: fixed` to fit the card; short column headers with full labels in `title` tooltips) + sticky add/save bar + optional transmit + export. Column order: **existe → type → configured → OS → OS actif → anomaly**; other fields disabled until « existe » is checked; delete control is icon-only (×). Wilaya edit modal uses the same table.
+- Wilaya edit modal: same **compact table** + **wide état modal** (`modalEtat`) with sticky toolbar (add line, save, close) as commune UX.
 - **Wilaya filter:** `?municipalityId=` on list + export; UI banner when active.
 - **Retour:** `BackButton` (history), not hard link to hub.
 

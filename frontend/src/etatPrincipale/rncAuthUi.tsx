@@ -52,6 +52,7 @@ export function rncStatusTableCellStyle(st: string): CSSProperties | undefined {
 
 export function RncAuthStatusChip({ status }: { status: string }) {
   const { t } = useTranslation()
+  if (!status || status === 'none') return null
   return (
     <span className="chip chipSm" style={rncStatusChipStyle(status)}>
       {rncStatusLabel(status, t)}

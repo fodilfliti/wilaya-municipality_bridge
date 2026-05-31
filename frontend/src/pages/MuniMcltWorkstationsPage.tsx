@@ -9,6 +9,7 @@ import {
 import { triggerBlobDownload } from '../operations/format'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { BackButton } from '../components/BackButton'
+import { EtatLineCardHeader } from '../etatPrincipale/EtatLineCardHeader'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
 
 function emptyLine(): api.McltWorkstationLine {
@@ -32,13 +33,6 @@ function lineKey(line: api.McltWorkstationLine, i: number) {
   return line.id > 0 ? String(line.id) : `new-${i}`
 }
 
-function rncLabel(st: string, t: (k: string) => string) {
-  if (st === 'pending') return t('mcltRncPending')
-  if (st === 'approved') return t('mcltRncApproved')
-  if (st === 'rejected') return t('mcltRncRejected')
-  return t('mcltRncNone')
-}
-
 export function MuniMcltWorkstationsPage({ token }: { token: string }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language === 'fr' ? 'fr' : 'ar'
@@ -47,9 +41,40 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null)
   const [lines, setLines] = useState<api.McltWorkstationLine[]>([])
   const [saving, setSaving] = useState(false)
-  const [muniLabel, setMuniLabel] = useState('')
   const [requestingId, setRequestingId] = useState<number | null>(null)
   const [rncModes, setRncModes] = useState<Record<string, RncRequestMode>>({})
+  const [savedMcltByLineId, setSavedMcltByLineId] = useState<
+    Record<number, { ip_mclt: string; ip_rnc_requested: string }>
+  >({})
+
+  function indexSavedMcltIps(rows: api.McltWorkstationLine[]) {
+    const m: Record<number, { ip_mclt: string; ip_rnc_requested: string }> = {}
+    for (const l of rows) {
+      if (l.id > 0) {
+        m[l.id] = {
+          ip_mclt: (l.ip_mclt || '').trim(),
+          ip_rnc_requested: (l.ip_rnc_requested || '').trim(),
+        }
+      }
+    }
+    return m
+  }
+
+  function mcltIpChangedFromSaved(line: api.McltWorkstationLine) {
+    if (line.id <= 0) return false
+    const s = savedMcltByLineId[line.id]
+    if (!s) return false
+    return (
+      (line.ip_mclt || '').trim() !== s.ip_mclt ||
+      (line.ip_rnc_requested || '').trim() !== s.ip_rnc_requested
+    )
+  }
+
+  function canRequestRnc(line: api.McltWorkstationLine) {
+    if (line.id <= 0) return false
+    if (mcltIpChangedFromSaved(line)) return true
+    return line.rnc_auth_status === 'none' || line.rnc_auth_status === 'rejected'
+  }
 
   async function load() {
     setError(null)
@@ -57,9 +82,9 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
     try {
       const res = await api.muniMcltWorkstationsGet(token)
       const ws = res.workstations || []
-      setLines(ws.length ? ws : [emptyLine()])
-      const m = res.municipality
-      setMuniLabel(m ? (lang === 'fr' ? m.name_fr : m.name_ar) : '')
+      const next = ws.length ? ws : [emptyLine()]
+      setLines(next)
+      setSavedMcltByLineId(indexSavedMcltIps(next))
     } catch (e: unknown) {
       const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
       const msg = formatApiErrorMessage(raw, t)
@@ -88,7 +113,30 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
   }
 
   function updateLine(i: number, patch: Partial<api.McltWorkstationLine>) {
-    setLines((prev) => prev.map((l, j) => (j === i ? { ...l, ...patch } : l)))
+    setLines((prev) =>
+      prev.map((l, j) => {
+        if (j !== i) return l
+        const next = { ...l, ...patch }
+        if ('ip_mclt' in patch || 'ip_rnc_requested' in patch) {
+          const test = { ...l, ...patch }
+          if (
+            l.id > 0 &&
+            mcltIpChangedFromSaved({
+              ...l,
+              ip_mclt: test.ip_mclt ?? null,
+              ip_rnc_requested: test.ip_rnc_requested ?? null,
+            })
+          ) {
+            const st = l.rnc_auth_status
+            if (st === 'pending' || st === 'approved' || st === 'rejected') {
+              next.rnc_auth_status = 'none'
+              next.ip_rnc_authorized = null
+            }
+          }
+        }
+        return next
+      }),
+    )
   }
 
   function addLine() {
@@ -118,7 +166,9 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
     setSaving(true)
     try {
       const res = await api.muniMcltWorkstationsPatch(token, { workstations: buildWorkstationsPayload() })
-      setLines((res.workstations || []).length ? res.workstations : [emptyLine()])
+      const next = (res.workstations || []).length ? res.workstations : [emptyLine()]
+      setLines(next)
+      setSavedMcltByLineId(indexSavedMcltIps(next))
       snack.show(t('snackbarSaved'), 'success')
     } catch (e: unknown) {
       const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
@@ -143,11 +193,27 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
     }
     setRequestingId(line.id)
     try {
-      const res = await api.muniMcltRequestRncAuthorization(token, line.id, {
+      const saveRes = await api.muniMcltWorkstationsPatch(token, { workstations: buildWorkstationsPayload() })
+      const nextLines = (saveRes.workstations || []).length ? saveRes.workstations : [emptyLine()]
+      setLines(nextLines)
+      setSavedMcltByLineId(indexSavedMcltIps(nextLines))
+      const savedLine = nextLines[index]
+      if (!savedLine?.id) {
+        snack.show(t('mcltSaveBeforeRnc'), 'error')
+        return
+      }
+      const res = await api.muniMcltRequestRncAuthorization(token, savedLine.id, {
         request_mode: mode,
         ip_rnc_requested: mode === 'specific' ? ipReq : null,
       })
-      updateLine(index, res.workstation)
+      setLines((prev) => prev.map((l, j) => (j === index ? res.workstation : l)))
+      setSavedMcltByLineId((prev) => ({
+        ...prev,
+        [res.workstation.id]: {
+          ip_mclt: (res.workstation.ip_mclt || '').trim(),
+          ip_rnc_requested: (res.workstation.ip_rnc_requested || '').trim(),
+        },
+      }))
       snack.show(t('mcltRequestRncDone'), 'success')
     } catch (e: unknown) {
       const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
@@ -193,9 +259,6 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
         </div>
       </div>
 
-      {muniLabel ? <div className="muted">{muniLabel}</div> : null}
-      <p className="muted">{t('mcltMuniIntro')}</p>
-
       {error ? <div className="muted" style={{ marginTop: 10 }}>{error}</div> : null}
 
       <MuniEtatPrincipalWorkflow
@@ -209,13 +272,14 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
             key={line.id > 0 ? String(line.id) : `new-${i}`}
             className="card cardSubtle etatMuniLineCard"
           >
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontWeight: 700 }}>{t('backupServersLineTitle', { n: i + 1 })}</div>
-              <div className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <MuniEtatLineDraftBadge isDraft={line.id <= 0} />
-                <span className="chip chipSm">{rncLabel(line.rnc_auth_status, t)}</span>
-              </div>
-            </div>
+            <EtatLineCardHeader
+              lineNumber={i + 1}
+              rncStatus={line.rnc_auth_status}
+              removeDisabled={lines.length <= 1}
+              removeLabelKey="mcltRemoveLine"
+              titleExtra={<MuniEtatLineDraftBadge isDraft={line.id <= 0} />}
+              onRemove={() => removeLine(i)}
+            />
             <div className="etatMuniLineFields">
               <label className="field">
                 <div className="muted">{t('mcltColIpMclt')}</div>
@@ -254,19 +318,37 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
                   onChange={(e) => updateLine(i, { antivirus_name: e.target.value })}
                 />
               </label>
-              {line.ip_rnc_authorized ? (
+              {line.ip_rnc_authorized && !canRequestRnc(line) ? (
                 <div className="muted etatMuniFieldFull">
                   {t('mcltColIpRnc')}: <strong>{line.ip_rnc_authorized}</strong>
                 </div>
               ) : null}
 
-              {line.rnc_auth_status === 'none' || line.rnc_auth_status === 'rejected' ? (
+              {canRequestRnc(line) ? (
                 <div className="etatMuniRncBlock">
                   <MuniEtatRncStepHeader />
+                  {mcltIpChangedFromSaved(line) && line.id > 0 && line.rnc_auth_status !== 'none' ? (
+                    <p className="muted" style={{ margin: '0 0 6px', fontSize: 13 }}>
+                      {t('mcltIpChangedReRequest')}
+                    </p>
+                  ) : null}
                   <div className="muted" style={{ fontWeight: 600, marginBottom: 6 }}>
                     {t('mcltRncRequestMode')}
                   </div>
                   <div className="etatMuniRncOptions">
+                    {getRncMode(line, i) === 'specific' ? (
+                      <label className="field etatMuniRncIpField">
+                        <div className="muted">{t('mcltColIpRncReq')}</div>
+                        <input
+                          className="input"
+                          value={line.ip_rnc_requested || ''}
+                          onChange={(e) => updateLine(i, { ip_rnc_requested: e.target.value })}
+                          placeholder={t('mcltRncRequestSpecificHint')}
+                        />
+                      </label>
+                    ) : (
+                      <p className="muted etatMuniRncGenericHint">{t('mcltRncRequestGenericHint')}</p>
+                    )}
                     <label className="etatMuniRncOption">
                       <input
                         type="radio"
@@ -285,51 +367,26 @@ export function MuniMcltWorkstationsPage({ token }: { token: string }) {
                       />
                       <span>{t('mcltRncRequestGeneric')}</span>
                     </label>
-                    {getRncMode(line, i) === 'specific' ? (
-                      <label className="field" style={{ marginTop: 4 }}>
-                        <div className="muted">{t('mcltColIpRncReq')}</div>
-                        <input
-                          className="input"
-                          value={line.ip_rnc_requested || ''}
-                          onChange={(e) => updateLine(i, { ip_rnc_requested: e.target.value })}
-                          placeholder={t('mcltRncRequestSpecificHint')}
-                        />
-                      </label>
-                    ) : (
-                      <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                        {t('mcltRncRequestGenericHint')}
-                      </p>
-                    )}
                   </div>
-                  {(line.rnc_auth_status === 'none' || line.rnc_auth_status === 'rejected') && line.id > 0 ? (
+                  {line.id > 0 ? (
                     <button
                       type="button"
                       className="btn btnSmall btnPrimary"
                       style={{ marginTop: 10 }}
-                      disabled={requestingId === line.id}
+                      disabled={saving || requestingId === line.id}
                       onClick={() => requestRnc(line, i)}
                     >
-                      {t('mcltRequestRnc')}
+                      {requestingId === line.id ? '…' : t('mcltRequestRnc')}
                     </button>
-                  ) : line.id <= 0 ? (
+                  ) : (
                     <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>
                       {t('mcltSaveBeforeRnc')}
                     </p>
-                  ) : null}
-                </div>
-              ) : line.ip_rnc_requested ? (
-                <div className="muted etatMuniFieldFull">
-                  {t('mcltColIpRncReq')}: <strong>{line.ip_rnc_requested}</strong>
+                  )}
                 </div>
               ) : line.rnc_auth_status === 'pending' ? (
-                <div className="muted etatMuniFieldFull">{t('mcltRncRequestGenericHint')}</div>
+                <div className="muted etatMuniFieldFull">{t('mcltRncPendingHint')}</div>
               ) : null}
-
-              <div className="etatMuniLineFooter">
-                <button type="button" className="btn btnSmall" disabled={lines.length <= 1} onClick={() => removeLine(i)}>
-                  {t('mcltRemoveLine')}
-                </button>
-              </div>
             </div>
           </div>
         ))}

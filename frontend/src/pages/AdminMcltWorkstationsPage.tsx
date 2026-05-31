@@ -10,9 +10,9 @@ import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
 import { BackButton } from '../components/BackButton'
 import { EtatPrincipaleFilterBanner } from '../etatPrincipale/EtatPrincipaleFilterBanner'
 import { useAdminEtatWilayaFilter } from '../etatPrincipale/useAdminEtatWilayaFilter'
+import { EtatLineCardHeader } from '../etatPrincipale/EtatLineCardHeader'
 import {
   RncAuthAdminSection,
-  RncAuthStatusChip,
   RncAuthStatusSelect,
   rncStatusLabel,
   rncStatusTableCellStyle,
@@ -188,21 +188,14 @@ export function AdminMcltWorkstationsPage({ token }: { token: string }) {
           }
         >
               {lines.map((line, i) => (
-                <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle etatModalLineCard">
-                  <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <div style={{ fontWeight: 700 }}>{t('backupServersLineTitle', { n: i + 1 })}</div>
-                    <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                      <RncAuthStatusChip status={line.rnc_auth_status} />
-                    <button
-                      type="button"
-                      className="btn btnSmall"
-                      disabled={saving || lines.length <= 1}
-                      onClick={() => removeLine(i)}
-                    >
-                      {t('mcltRemoveLine')}
-                    </button>
-                    </div>
-                  </div>
+                <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle etatMuniLineCard etatModalLineCard">
+                  <EtatLineCardHeader
+                    lineNumber={i + 1}
+                    rncStatus={line.rnc_auth_status}
+                    removeDisabled={saving || lines.length <= 1}
+                    removeLabelKey="mcltRemoveLine"
+                    onRemove={() => removeLine(i)}
+                  />
                   <div className="etatMuniLineFields">
                     <label className="field">
                       <div className="muted">{t('mcltColIpMclt')}</div>
@@ -259,21 +252,21 @@ export function AdminMcltWorkstationsPage({ token }: { token: string }) {
                       />
                     </label>
                     <RncAuthAdminSection label={t('mcltColRncStatus')} status={line.rnc_auth_status}>
+                      <label className="field etatMuniRncIpField">
+                        <div className="muted">{t('mcltColIpRncReq')}</div>
+                        <input
+                          className="input"
+                          value={line.ip_rnc_requested || ''}
+                          onChange={(e) => updateLine(i, { ip_rnc_requested: e.target.value })}
+                          disabled={saving}
+                        />
+                      </label>
                       <label className="field">
                         <div className="muted">{t('mcltColIpRnc')}</div>
                         <input
                           className="input"
                           value={line.ip_rnc_authorized || ''}
                           onChange={(e) => updateLine(i, { ip_rnc_authorized: e.target.value })}
-                          disabled={saving}
-                        />
-                      </label>
-                      <label className="field">
-                        <div className="muted">{t('mcltColIpRncReq')}</div>
-                        <input
-                          className="input"
-                          value={line.ip_rnc_requested || ''}
-                          onChange={(e) => updateLine(i, { ip_rnc_requested: e.target.value })}
                           disabled={saving}
                         />
                       </label>

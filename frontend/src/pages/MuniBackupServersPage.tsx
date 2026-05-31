@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as api from '../api'
-import {
-  MuniEtatLineDraftBadge,
-  MuniEtatPrincipalWorkflow,
-} from '../components/MuniEtatPrincipalWorkflow'
+import { MuniEtatPrincipalWorkflow } from '../components/MuniEtatPrincipalWorkflow'
+import { BackupServerLinesEditor } from '../etatPrincipale/BackupServerLinesEditor'
 import { triggerBlobDownload } from '../operations/format'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { BackButton } from '../components/BackButton'
@@ -32,7 +30,6 @@ export function MuniBackupServersPage({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null)
   const [lines, setLines] = useState<api.BackupServerLine[]>([])
   const [saving, setSaving] = useState(false)
-  const [muniLabel, setMuniLabel] = useState('')
 
   async function load() {
     setError(null)
@@ -49,8 +46,6 @@ export function MuniBackupServersPage({ token }: { token: string }) {
             }))
           : [emptyServerDraft()],
       )
-      const m = res.municipality
-      setMuniLabel(m ? (lang === 'fr' ? m.name_fr : m.name_ar) : '')
     } catch (e: unknown) {
       const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
       const msg = formatApiErrorMessage(raw, t)
@@ -150,89 +145,23 @@ export function MuniBackupServersPage({ token }: { token: string }) {
         </div>
       </div>
 
-      {muniLabel ? <div className="muted">{muniLabel}</div> : null}
-      <p className="muted">{t('backupServersMuniIntro')}</p>
-
       {error ? <div className="muted" style={{ marginTop: 10 }}>{error}</div> : null}
 
       <MuniEtatPrincipalWorkflow
+        compact
         saving={saving}
         onSaveDraft={() => saveDraft()}
         addLineLabel={t('backupServersAddServerLine')}
         onAddLine={() => addLine()}
         withRncStep={false}
       >
-        {lines.map((line, i) => (
-          <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle etatMuniLineCard">
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontWeight: 700 }}>{t('backupServersLineTitle', { n: i + 1 })}</div>
-              <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                <MuniEtatLineDraftBadge isDraft={line.id <= 0} />
-                <button
-                  type="button"
-                  className="btn btnSmall"
-                  disabled={lines.length <= 1}
-                  onClick={() => removeLine(i)}
-                >
-                  {t('backupServersRemoveServerLine')}
-                </button>
-              </div>
-            </div>
-            <div className="etatMuniLineFields">
-              <label className="etatMuniFieldCheck">
-                <input
-                  type="checkbox"
-                  checked={line.existe}
-                  onChange={(e) => updateLine(i, { existe: e.target.checked })}
-                />
-                <span>{t('backupServersColExiste')}</span>
-              </label>
-              <label className="field">
-                <div className="muted">{t('backupServersColServerType')}</div>
-                <input
-                  className="input"
-                  value={line.server_type || ''}
-                  onChange={(e) => updateLine(i, { server_type: e.target.value })}
-                  placeholder={t('backupServersOsTypeHint')}
-                />
-              </label>
-              <label className="etatMuniFieldCheck">
-                <input
-                  type="checkbox"
-                  checked={line.configured}
-                  onChange={(e) => updateLine(i, { configured: e.target.checked })}
-                />
-                <span>{t('backupServersColConfigured')}</span>
-              </label>
-              <label className="field">
-                <div className="muted">{t('backupServersColOsType')}</div>
-                <input
-                  className="input"
-                  value={line.os_type || ''}
-                  onChange={(e) => updateLine(i, { os_type: e.target.value })}
-                  placeholder="Windows Server …"
-                />
-              </label>
-              <label className="etatMuniFieldCheck">
-                <input
-                  type="checkbox"
-                  checked={line.os_active}
-                  onChange={(e) => updateLine(i, { os_active: e.target.checked })}
-                />
-                <span>{t('backupServersColOsActive')}</span>
-              </label>
-              <label className="field etatMuniFieldFull">
-                <div className="muted">{t('backupServersColAnomalie')}</div>
-                <textarea
-                  className="input"
-                  rows={2}
-                  value={line.anomalie || ''}
-                  onChange={(e) => updateLine(i, { anomalie: e.target.value })}
-                />
-              </label>
-            </div>
-          </div>
-        ))}
+        <BackupServerLinesEditor
+          lines={lines}
+          saving={saving}
+          showDraftBadge
+          onUpdate={updateLine}
+          onRemove={removeLine}
+        />
       </MuniEtatPrincipalWorkflow>
     </div>
   )

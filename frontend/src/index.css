@@ -144,18 +144,50 @@ select {
 
 @media (max-width: 720px) {
   .topbar--3 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "brand brand"
+      "nav actions";
+    gap: 8px 10px;
+    align-items: center;
   }
 
-  .topbar--3 .topbarBrand,
-  .topbar--3 .topbarNav,
-  .topbar--3 .actions {
+  .topbar--3 .topbarBrand {
+    grid-area: brand;
     justify-self: stretch;
   }
 
+  .topbar--3 .topbarNav {
+    grid-area: nav;
+    justify-self: start;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .topbar--3 .topbarNav .btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
   .topbar--3 .actions {
+    grid-area: actions;
+    justify-self: end;
     justify-content: flex-end;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .topbarProfileLabel,
+  .topbarProfileChevron {
+    display: none;
+  }
+
+  .topbarProfileToggle {
+    gap: 0;
+    min-width: 40px;
+    justify-content: center;
+    padding-inline: 10px;
   }
 }
 
@@ -1272,10 +1304,34 @@ button.hubTile.active {
   gap: 10px;
 }
 
+.etatMuniStepsGuideTitle {
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.etatMuniStepsGuideSteps {
+  display: grid;
+  gap: 10px;
+}
+
 @media (min-width: 768px) {
-  .etatMuniStepsGuide {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  .etatMuniStepsGuide:not(.etatMuniStepsGuideCompact) {
+    grid-template-columns: 27% minmax(0, 1fr);
     gap: 12px 16px;
+    align-items: start;
+  }
+
+  .etatMuniStepsGuideSteps {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px 16px;
+  }
+
+  .etatMuniStepsGuideCompact {
+    grid-template-columns: 1fr;
+  }
+
+  .etatMuniStepsGuideCompact .etatMuniStepsGuideSteps {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   }
 }
 
@@ -1317,6 +1373,14 @@ button.hubTile.active {
   padding: 12px 14px;
 }
 
+.etatMuniLineCardHead {
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .etatMuniLineFields {
   display: grid;
   grid-template-columns: 1fr;
@@ -1326,23 +1390,12 @@ button.hubTile.active {
 
 @media (min-width: 520px) {
   .etatMuniLineFields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 900px) {
-  .etatMuniLineFields {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 1200px) {
-  .etatMuniLineFields {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.etatMuniLineFields .etatMuniFieldFull {
+.etatMuniLineFields .etatMuniFieldFull,
+.etatMuniLineFields .etatMuniRncIpField {
   grid-column: 1 / -1;
 }
 
@@ -1365,20 +1418,33 @@ button.hubTile.active {
 .etatMuniRncOptions {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.etatMuniRncIpField {
+  width: 100%;
+  margin: 0;
+}
+
+.etatMuniRncGenericHint {
+  margin: 0;
+  font-size: 13px;
 }
 
 @media (min-width: 640px) {
   .etatMuniRncOptions {
     flex-direction: row;
     flex-wrap: wrap;
-    align-items: flex-start;
+    align-items: flex-end;
     gap: 12px 20px;
   }
 
-  .etatMuniRncOptions .field {
-    flex: 1 1 200px;
-    min-width: 180px;
+  .etatMuniRncIpField,
+  .etatMuniRncGenericHint {
+    flex: 1 1 100%;
+    width: 100%;
+    order: -1;
   }
 }
 
@@ -1426,16 +1492,194 @@ button.hubTile.active {
   color: #c2410c;
 }
 
-.announcementStack {
-  display: grid;
+/* Compact table editor for état principal lines (backup servers, …) */
+.etatLinesTableWrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.etatLinesTable {
+  width: 100%;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.etatLinesTable col.etatColIdx {
+  width: 40px;
+}
+
+.etatLinesTable col.etatColCheck {
+  width: 42px;
+}
+
+.etatLinesTable col.etatColType,
+.etatLinesTable col.etatColOs {
+  width: 17%;
+}
+
+.etatLinesTable col.etatColAnom {
+  width: 22%;
+}
+
+.etatLinesTable col.etatColAct {
+  width: 40px;
+}
+
+@media (min-width: 900px) {
+  .etatLinesTable col.etatColType,
+  .etatLinesTable col.etatColOs {
+    width: 19%;
+  }
+
+  .etatLinesTable col.etatColAnom {
+    width: 20%;
+  }
+}
+
+.etatLinesTable th,
+.etatLinesTable td {
+  padding: 5px 6px;
+  vertical-align: middle;
+}
+
+.etatLinesTable thead th {
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 700;
+  text-align: center;
+  background: var(--field2);
+  white-space: normal;
+  hyphens: auto;
+}
+
+.etatLinesTableGroupStart {
+  border-inline-start: 2px solid rgba(29, 78, 216, 0.18);
+}
+
+.etatLinesTableGroupSep {
+  border-inline-start: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.etatLinesTable td input:disabled,
+.etatLinesTable td textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.etatLinesTableIdx {
+  text-align: center;
+}
+
+.etatLinesTableCheck {
+  text-align: center;
+}
+
+.etatLinesTableCheck input[type='checkbox'] {
+  margin: 0;
+}
+
+.etatLinesTableActions {
+  text-align: center;
+  padding: 4px 2px !important;
+}
+
+.etatLinesTableActions .btnIconDanger {
+  min-width: 30px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.etatLinesTableIdxCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.inputDense {
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  min-width: 0;
+  width: 100%;
+}
+
+.etatLinesTableAnom {
+  vertical-align: top;
+}
+
+.etatAnomalieField {
+  resize: none;
+  min-height: 2.15rem;
+  max-height: 5.4rem;
+  line-height: 1.35;
+  overflow-y: auto;
+  field-sizing: content;
+}
+
+.etatMuniStepsGuideCompact {
+  margin-top: 10px;
+  padding: 8px 12px;
+}
+
+.etatMuniStepsGuideCompact .etatMuniStepRow {
+  align-items: center;
+}
+
+.etatMuniStepDescCompact {
+  font-size: 12px;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+@media (min-width: 900px) {
+  .etatMuniStepDescCompact {
+    display: none;
+  }
+}
+
+.etatMuniWorkflowStackCompact {
   gap: 8px;
 }
 
+.etatMuniStickyBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0 2px;
+  margin-top: 4px;
+  background: linear-gradient(to top, var(--card) 70%, transparent);
+  border-top: 1px solid var(--border);
+}
+
+.announcementStack {
+  display: grid;
+  gap: 6px;
+}
+
 .announcementTicker {
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.12);
   font-weight: 700;
+  font-size: 13px;
+  padding: 6px 10px;
+  min-height: 32px;
 }
 
 .announcementTicker--urgent {
@@ -1450,56 +1694,99 @@ button.hubTile.active {
   border-color: #9a3412;
 }
 
-.announcementTickerTrack {
-  overflow: hidden;
-  padding: 10px 12px;
-  width: 100%;
+.announcementTickerIcon {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+  width: 1.25rem;
+  text-align: center;
 }
 
-.announcementTickerInner {
-  display: inline-block;
-  white-space: nowrap;
-  min-width: 100%;
+.announcementTickerViewport {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  direction: ltr;
 }
 
 .announcementTickerText {
   display: inline-block;
-  padding-inline: 4px;
+  white-space: nowrap;
+  will-change: transform;
 }
 
-.announcementTickerScrollLtr {
-  animation: announcementScrollLtr var(--ticker-duration, 18s) linear infinite;
+.announcementTickerText--run {
+  animation: announcementTickerCross var(--marquee-duration, 12s) linear infinite;
 }
 
-.announcementTickerScrollRtl {
-  animation: announcementScrollRtl var(--ticker-duration, 18s) linear infinite;
-}
-
-@keyframes announcementScrollLtr {
-  0%,
-  10% {
-    transform: translateX(0);
+@keyframes announcementTickerCross {
+  from {
+    transform: translateX(var(--marquee-start, 100%));
   }
-  72%,
-  82% {
-    transform: translateX(calc(-1 * var(--ticker-scroll, 200px)));
-  }
-  100% {
-    transform: translateX(0);
+  to {
+    transform: translateX(var(--marquee-end, -100%));
   }
 }
 
-@keyframes announcementScrollRtl {
-  0%,
-  10% {
-    transform: translateX(0);
+@media (prefers-reduced-motion: reduce) {
+  .announcementTickerText--run {
+    animation: none;
+    transform: none;
   }
-  72%,
-  82% {
-    transform: translateX(var(--ticker-scroll, 200px));
+}
+
+/* Hub home — denser tiles and sections */
+.hubPage {
+  display: grid;
+  gap: 12px;
+}
+
+.hubPage > .cardSubtle {
+  padding: 10px 12px;
+}
+
+.hubSectionTitle {
+  font-weight: 800;
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+
+.hubPage .hubGrid {
+  gap: 10px;
+}
+
+@media (min-width: 960px) {
+  .hubPage .hubGrid:not(.hubGridCompact):not(.hubGridPair) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  100% {
-    transform: translateX(0);
-  }
+}
+
+.hubPage .hubTile {
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+.hubPage .hubTileIcon {
+  font-size: 22px;
+}
+
+.hubPage .hubTileIconSm {
+  font-size: 20px;
+}
+
+.hubPage .hubTileTitle {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.hubPage .hubTileDesc {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.hubPage .hubTileCompact {
+  padding: 8px 10px;
 }
 

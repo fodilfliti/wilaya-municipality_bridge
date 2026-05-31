@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, NavLink, Route, Routes, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, Route, Routes, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import * as api from "./api";
 
@@ -46,18 +46,12 @@ import { TopbarProfileMenu } from "./components/TopbarProfileMenu";
 import { PermissionsProvider, usePerm } from "./permissions/PermissionsContext";
 import { RequirePermission } from "./permissions/RequirePermission";
 
-function MuniAnnouncementsShell({
-  token,
-  children,
-}: {
-  token: string;
-  children: React.ReactNode;
-}) {
+function MuniAnnouncementsLayout({ token }: { token: string }) {
   const { can } = usePerm();
   const enabled = can("announcements.view", "view");
   return (
     <AnnouncementsProvider token={token} enabled={enabled}>
-      {children}
+      <Outlet />
     </AnnouncementsProvider>
   );
 }
@@ -491,8 +485,7 @@ function App() {
                 />
               </>
             ) : (
-              <MuniAnnouncementsShell token={token!}>
-              <>
+              <Route element={<MuniAnnouncementsLayout token={token!} />}>
                 <Route path="/" element={<MuniHubPage />} />
                 <Route
                   path="/apps"
@@ -556,8 +549,7 @@ function App() {
                   element={<MailThreadPage token={token!} mode="muni" />}
                 />
                 <Route path="*" element={<MuniHubPage />} />
-              </>
-              </MuniAnnouncementsShell>
+              </Route>
             )}
             </Routes>
           </PermissionsProvider>

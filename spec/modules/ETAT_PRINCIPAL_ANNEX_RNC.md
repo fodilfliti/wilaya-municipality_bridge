@@ -62,9 +62,9 @@
 ### UI/UX
 
 - Hub **État principal**: tile **IP RNC annexes** → `/etat-principale/annex-rnc-authorizations`.
-- Commune: annex dropdown; field order — **annexe**, **PC utilisé**, **année d’autorisation**, **IP demandée** (`etatMuniRncBlock` + **Demander autorisation**); **IP demandée** required with `inputInvalid` + per-field error. Excel: no **nombre IP** column.
+- Commune: no commune name on page; guided steps via `MuniEtatPrincipalWorkflow` (no duplicate intro paragraph); annex dropdown; field order — **annexe**, **PC utilisé**, **année d’autorisation**, **IP demandée** (`etatMuniRncBlock` + **Demander autorisation**); **IP demandée** required with `inputInvalid` + per-field error. Excel: no **nombre IP** column.
 - Wilaya: table with code, annex name, columns, statut; edit modal; **`?municipalityId=`** filter + banner; **BackButton**.
-- Commune + Wilaya line forms: responsive multi-column field grid; Wilaya edit uses wide état modal with sticky add/save toolbar (see `ETAT_PRINCIPAL.md` UI/UX).
+- Commune + **Wilaya edit modal**: same patterns as MCLT (`EtatLineCardHeader`, 3 fields per row, IP demandée before IP autorisée in RNC block, wide modal + sticky toolbar — see `ETAT_PRINCIPAL_MCLT.md`).
 
 ### Audit events
 

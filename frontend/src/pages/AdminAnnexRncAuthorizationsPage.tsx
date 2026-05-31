@@ -9,9 +9,9 @@ import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
 import { BackButton } from '../components/BackButton'
 import { EtatPrincipaleFilterBanner } from '../etatPrincipale/EtatPrincipaleFilterBanner'
 import { useAdminEtatWilayaFilter } from '../etatPrincipale/useAdminEtatWilayaFilter'
+import { EtatLineCardHeader } from '../etatPrincipale/EtatLineCardHeader'
 import {
   RncAuthAdminSection,
-  RncAuthStatusChip,
   RncAuthStatusSelect,
   rncStatusLabel,
   rncStatusTableCellStyle,
@@ -208,21 +208,14 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
               <p className="muted">{t('annexRncNoAnnexes')}</p>
             ) : (
                 lines.map((line, i) => (
-                  <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle etatModalLineCard">
-                    <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <div style={{ fontWeight: 700 }}>{t('backupServersLineTitle', { n: i + 1 })}</div>
-                      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                        <RncAuthStatusChip status={line.rnc_auth_status} />
-                        <button
-                          type="button"
-                          className="btn btnSmall"
-                          disabled={saving || lines.length <= 1}
-                          onClick={() => removeLine(i)}
-                        >
-                          {t('annexRncRemoveLine')}
-                        </button>
-                      </div>
-                    </div>
+                  <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle etatMuniLineCard etatModalLineCard">
+                    <EtatLineCardHeader
+                      lineNumber={i + 1}
+                      rncStatus={line.rnc_auth_status}
+                      removeDisabled={saving || lines.length <= 1}
+                      removeLabelKey="annexRncRemoveLine"
+                      onRemove={() => removeLine(i)}
+                    />
                     <div className="etatMuniLineFields">
                       <label className="field">
                         <div className="muted">{t('annexRncColAnnex')}</div>
@@ -258,6 +251,15 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
                         />
                       </label>
                       <RncAuthAdminSection label={t('mcltColRncStatus')} status={line.rnc_auth_status}>
+                        <label className="field etatMuniRncIpField">
+                          <div className="muted">{t('annexRncColIpReq')}</div>
+                          <input
+                            className="input"
+                            value={line.ip_requested || ''}
+                            disabled={saving}
+                            onChange={(e) => updateLine(i, { ip_requested: e.target.value })}
+                          />
+                        </label>
                         <label className="field">
                           <div className="muted">{t('annexRncColIpAuth')}</div>
                           <input
@@ -265,15 +267,6 @@ export function AdminAnnexRncAuthorizationsPage({ token }: { token: string }) {
                             value={line.ip_authorized || ''}
                             disabled={saving}
                             onChange={(e) => updateLine(i, { ip_authorized: e.target.value })}
-                          />
-                        </label>
-                        <label className="field">
-                          <div className="muted">{t('annexRncColIpReq')}</div>
-                          <input
-                            className="input"
-                            value={line.ip_requested || ''}
-                            disabled={saving}
-                            onChange={(e) => updateLine(i, { ip_requested: e.target.value })}
                           />
                         </label>
                         <RncAuthStatusSelect

@@ -10,17 +10,11 @@ import { FormErrorBlock, FieldErrorText } from '../components/FormErrorBlock'
 import { triggerBlobDownload } from '../operations/format'
 import { useSnackbar } from '../snackbar/SnackbarContext'
 import { BackButton } from '../components/BackButton'
+import { EtatLineCardHeader } from '../etatPrincipale/EtatLineCardHeader'
 import { formatApiErrorMessage } from '../snackbar/formatApiErrorMessage'
 import { useZodForm } from '../validation/useZodForm'
 import { annexRncMuniSaveSchema } from '../validation/schemas/annexRnc'
 import { filterDigits } from '../utils/digitsOnly'
-
-function rncLabel(st: string, t: (k: string) => string) {
-  if (st === 'pending') return t('mcltRncPending')
-  if (st === 'approved') return t('mcltRncApproved')
-  if (st === 'rejected') return t('mcltRncRejected')
-  return t('mcltRncNone')
-}
 
 function emptyLine(annexId: number): api.AnnexRncLine {
   return {
@@ -53,7 +47,6 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
   const [lines, setLines] = useState<api.AnnexRncLine[]>([])
   const [annexes, setAnnexes] = useState<Array<{ id: number; name: string }>>([])
   const [saving, setSaving] = useState(false)
-  const [muniLabel, setMuniLabel] = useState('')
   const [requestingIndex, setRequestingIndex] = useState<number | null>(null)
   /** Last saved IP per line id — used to detect edits that require a new RNC request */
   const [savedIpByLineId, setSavedIpByLineId] = useState<Record<number, string>>({})
@@ -88,8 +81,6 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
       const nextLines = rows.length ? rows : ax.length ? [emptyLine(ax[0].id)] : []
       setLines(nextLines)
       setSavedIpByLineId(indexSavedIps(nextLines))
-      const m = res.municipality
-      setMuniLabel(m ? (lang === 'fr' ? m.name_fr : m.name_ar) : '')
     } catch (e: unknown) {
       const raw = e instanceof api.ApiError ? e.message : String((e as Error)?.message || 'Erreur')
       const msg = formatApiErrorMessage(raw, t)
@@ -293,9 +284,6 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
         </div>
       </div>
 
-      {muniLabel ? <div className="muted">{muniLabel}</div> : null}
-      <p className="muted">{t('annexRncMuniIntro')}</p>
-
       {error ? <div className="muted" style={{ marginTop: 10 }}>{error}</div> : null}
       <FormErrorBlock message={saveForm.formError} />
 
@@ -310,13 +298,14 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
             key={line.id > 0 ? String(line.id) : `new-${i}`}
             className="card cardSubtle etatMuniLineCard"
           >
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ fontWeight: 700 }}>{t('backupServersLineTitle', { n: i + 1 })}</div>
-              <div className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <MuniEtatLineDraftBadge isDraft={line.id <= 0} />
-                <span className="chip chipSm">{rncLabel(line.rnc_auth_status, t)}</span>
-              </div>
-            </div>
+            <EtatLineCardHeader
+              lineNumber={i + 1}
+              rncStatus={line.rnc_auth_status}
+              removeDisabled={lines.length <= 1}
+              removeLabelKey="annexRncRemoveLine"
+              titleExtra={<MuniEtatLineDraftBadge isDraft={line.id <= 0} />}
+              onRemove={() => removeLine(i)}
+            />
             <div className="etatMuniLineFields">
               <label className="field">
                 <div className="muted">{t('annexRncColAnnex')}</div>
@@ -386,11 +375,6 @@ export function MuniAnnexRncAuthorizationsPage({ token }: { token: string }) {
                     </button>
                   </>
                 ) : null}
-              </div>
-              <div className="etatMuniLineFooter">
-                <button type="button" className="btn btnSmall" disabled={lines.length <= 1} onClick={() => removeLine(i)}>
-                  {t('annexRncRemoveLine')}
-                </button>
               </div>
             </div>
           </div>

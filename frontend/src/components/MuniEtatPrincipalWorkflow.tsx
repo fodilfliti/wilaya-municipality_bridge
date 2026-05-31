@@ -13,6 +13,8 @@ type Props = {
   submittedAt?: string | null
   transmitting?: boolean
   onTransmit?: () => void
+  /** Sticky action bar + compact step hint (table-style line editors). */
+  compact?: boolean
   children: ReactNode
 }
 
@@ -27,6 +29,7 @@ export function MuniEtatPrincipalWorkflow({
   submittedAt = null,
   transmitting = false,
   onTransmit,
+  compact = false,
   children,
 }: Props) {
   const { t } = useTranslation()
@@ -58,41 +61,39 @@ export function MuniEtatPrincipalWorkflow({
 
   return (
     <>
-      <div className="etatMuniStepsGuide" role="list" aria-label={t('etatMuniStepsTitle')}>
-        <div className="muted" style={{ fontWeight: 700, marginBottom: 4 }}>
-          {t('etatMuniStepsTitle')}
-        </div>
-        {steps.map((s) => (
-          <div key={s.n} className="etatMuniStepRow" role="listitem">
-            <span className="etatMuniStepNum" aria-hidden>
-              {s.n}
-            </span>
-            <div>
-              <div style={{ fontWeight: 700 }}>{s.title}</div>
-              <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-                {s.desc}
+      <div
+        className={compact ? 'etatMuniStepsGuide etatMuniStepsGuideCompact' : 'etatMuniStepsGuide'}
+        aria-label={t('etatMuniStepsTitle')}
+      >
+        {!compact ? (
+          <div className="etatMuniStepsGuideTitle muted">{t('etatMuniStepsTitle')}</div>
+        ) : null}
+        <div className="etatMuniStepsGuideSteps" role="list">
+          {steps.map((s) => (
+            <div key={s.n} className="etatMuniStepRow" role="listitem">
+              <span className="etatMuniStepNum" aria-hidden>
+                {s.n}
+              </span>
+              <div>
+                <div style={{ fontWeight: 700 }}>{s.title}</div>
+                {!compact ? (
+                  <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                    {s.desc}
+                  </div>
+                ) : (
+                  <div className="muted etatMuniStepDescCompact">{s.desc}</div>
+                )}
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      <div className="etatMuniWorkflowStack">
-        <div className="etatMuniLineCards">{children}</div>
+      <div className={compact ? 'etatMuniWorkflowStack etatMuniWorkflowStackCompact' : 'etatMuniWorkflowStack'}>
+        {compact ? children : <div className="etatMuniLineCards">{children}</div>}
 
-        <div className="etatMuniActionPanel card cardSubtle">
-          <div className="etatMuniPanelHead">
-            <span className="etatMuniStepNum" aria-hidden>
-              1
-            </span>
-            <div>
-              <div style={{ fontWeight: 700 }}>{t('etatMuniStep1Title')}</div>
-              <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-                {withRncStep ? t('etatMuniStep1PanelHintRnc') : t('etatMuniStep1PanelHintSimple')}
-              </div>
-            </div>
-          </div>
-          <div className="row" style={{ gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+        {compact ? (
+          <div className="etatMuniStickyBar">
             <button type="button" className="btn" disabled={!canAddLine || busy} onClick={() => onAddLine()}>
               {addLineLabel}
             </button>
@@ -100,7 +101,29 @@ export function MuniEtatPrincipalWorkflow({
               {saving ? '…' : saveLabel}
             </button>
           </div>
-        </div>
+        ) : (
+          <div className="etatMuniActionPanel card cardSubtle">
+            <div className="etatMuniPanelHead">
+              <span className="etatMuniStepNum" aria-hidden>
+                1
+              </span>
+              <div>
+                <div style={{ fontWeight: 700 }}>{t('etatMuniStep1Title')}</div>
+                <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                  {withRncStep ? t('etatMuniStep1PanelHintRnc') : t('etatMuniStep1PanelHintSimple')}
+                </div>
+              </div>
+            </div>
+            <div className="row" style={{ gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+              <button type="button" className="btn" disabled={!canAddLine || busy} onClick={() => onAddLine()}>
+                {addLineLabel}
+              </button>
+              <button type="button" className="btn btnPrimary" disabled={busy} onClick={() => onSaveDraft()}>
+                {saving ? '…' : saveLabel}
+              </button>
+            </div>
+          </div>
+        )}
 
         {showTransmitStep && !submittedAt && onTransmit ? (
           <div className="etatMuniActionPanel card cardSubtle etatMuniTransmitPanel">

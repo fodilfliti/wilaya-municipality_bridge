@@ -49,7 +49,7 @@ export function TopbarProfileMenu({
         <span className="topbarProfileIcon" aria-hidden>
           {"\u{1F464}"}
         </span>
-        <span>{t("profileMenu")}</span>
+        <span className="topbarProfileLabel">{t("profileMenu")}</span>
         <span className="topbarProfileChevron" aria-hidden>
           {open ? "\u25BE" : "\u25B8"}
         </span>

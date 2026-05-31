@@ -11,7 +11,7 @@
 ### Roles & rules
 
 - **`SUPER_ADMIN`:** list all communes + rows; export Excel; PATCH any commune’s rows (including `rnc_auth_status`, `ip_rnc_authorized`); approve/reject via PATCH.
-- **`MUNI_ADMIN`:** CRUD own rows only; `submit` for transmission timestamp; **POST request-authorization** on a row (not while already pending/approved).
+- **`MUNI_ADMIN`:** CRUD own rows only; `submit` for transmission timestamp; **POST request-authorization** on a row (not while already `pending`; after `approved`/`rejected`, only after IP change + save resets to `none`).
 
 ### Data model
 
@@ -41,7 +41,7 @@ Index: `(municipality_id, display_order)`.
 ### Workflows
 
 1. **Commune — step 1:** Add/edit lines → **Enregistrer le brouillon** (PATCH without transmit).
-2. **Commune — step 2:** On each **saved** line (`id > 0`), **Demander autorisation RNC** (`specific` \| `generic` + optional `ip_rnc_requested`) → `pending` + mail to Wilaya.
+2. **Commune — step 2:** On each **saved** line (`id > 0`), **Demander autorisation RNC** (`specific` \| `generic` + optional `ip_rnc_requested`) → `pending` + mail to Wilaya. Changing **@ IP MCLT** or **IP demandée RNC** after a prior request resets `rnc_auth_status` to `none` and clears **IP autorisée RNC** on save (same rule as annex RNC) — commune may submit a **new** request for that PC.
 3. **Commune — step 3:** **Transmettre à la wilaya** (confirm) — PATCH with `submit: true` (saves + marks transmission).
 4. **Wilaya** reviews table (pending highlighted), sets **IP autorisée RNC** + `approved` or `rejected`; optional **`?municipalityId=`** filter on list, charts, Excel from commune detail.
 
@@ -67,9 +67,9 @@ Index: `(municipality_id, display_order)`.
 ### UI/UX
 
 - Hub **État principal**: tile **Postes MCLT / RNC** → `/etat-principale/mclt-workstations`.
-- Commune: guided **3-step** UI (`MuniEtatPrincipalWorkflow`); draft badge on unsaved lines; RNC request only after save.
+- Commune: no commune name on page; guided **3-step** UI (`MuniEtatPrincipalWorkflow` — **Comment procéder** block only, no duplicate intro paragraph); draft badge on unsaved lines; RNC request only after save.
 - Wilaya: flat table (code, transmission, columns…, statut RNC, edit modal); filter banner when `?municipalityId=`; **BackButton** for Retour.
-- Commune + Wilaya line forms: responsive multi-column field grid; Wilaya edit uses wide état modal with sticky add/save toolbar (see `ETAT_PRINCIPAL.md` UI/UX).
+- Commune + **Wilaya edit modal**: shared line card header (`EtatLineCardHeader` — statut RNC chip hidden when `none`, **Supprimer** on the title row); **3 fields per row**; RNC block: IP demandée before IP autorisée; wide modal + sticky toolbar (see `ETAT_PRINCIPAL.md`).
 
 ### Audit events
 

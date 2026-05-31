@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { AnnouncementActiveItem } from '../api'
+
+const PX_PER_SEC = 52
 
 function formatDisplayDate(isoDate: string) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate)
@@ -13,58 +16,74 @@ type Props = {
 }
 
 export function AnnouncementTicker({ item, rtl }: Props) {
-  const trackRef = useRef<HTMLDivElement>(null)
-  const innerRef = useRef<HTMLDivElement>(null)
-  const [durationSec, setDurationSec] = useState(18)
-  const [scrollPx, setScrollPx] = useState(0)
+  const { t } = useTranslation()
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const textRef = useRef<HTMLSpanElement>(null)
+  const [motion, setMotion] = useState<{ durationSec: number; startX: number; endX: number } | null>(
+    null,
+  )
+
   const datePrefix = useMemo(() => formatDisplayDate(item.display_date), [item.display_date])
   const label = `${datePrefix}: ${item.body_text}`
-
-  useEffect(() => {
-    const track = trackRef.current
-    const inner = innerRef.current
-    if (!track || !inner) return
-    const run = () => {
-      const overflow = Math.max(0, inner.scrollWidth - track.clientWidth)
-      if (overflow < 8) {
-        setScrollPx(0)
-        setDurationSec(0)
-        return
-      }
-      setScrollPx(overflow)
-      const pxPerSec = 55
-      const scrollSec = overflow / pxPerSec
-      setDurationSec(Math.max(10, scrollSec + 4))
-    }
-    run()
-    const ro = new ResizeObserver(run)
-    ro.observe(track)
-    ro.observe(inner)
-    return () => ro.disconnect()
-  }, [label, rtl])
 
   const priorityClass =
     item.priority === 'urgent' ? 'announcementTicker--urgent' : 'announcementTicker--important'
 
-  const scrollClass = durationSec > 0 ? (rtl ? 'announcementTickerScrollRtl' : 'announcementTickerScrollLtr') : ''
+  const icon = item.priority === 'urgent' ? '\u{1F6A8}' : '\u{26A0}\u{FE0F}'
+  const priorityLabel =
+    item.priority === 'urgent' ? t('announcementPriorityUrgent') : t('announcementPriorityImportant')
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    const textEl = textRef.current
+    if (!viewport || !textEl) return
+
+    const measure = () => {
+      const viewportW = viewport.clientWidth
+      const textW = textEl.offsetWidth
+      const travel = viewportW + textW
+      const durationSec = Math.max(8, travel / PX_PER_SEC)
+
+      if (rtl) {
+        setMotion({ durationSec, startX: -textW, endX: viewportW })
+      } else {
+        setMotion({ durationSec, startX: viewportW, endX: -textW })
+      }
+    }
+
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(viewport)
+    ro.observe(textEl)
+    return () => ro.disconnect()
+  }, [label, rtl])
 
   return (
-    <div className={`announcementTicker ${priorityClass}`} role="status" aria-live="polite">
-      <div className="announcementTickerTrack" ref={trackRef}>
-        <div
-          ref={innerRef}
-          className={`announcementTickerInner ${scrollClass}`}
+    <div
+      className={`announcementTicker ${priorityClass}`}
+      role="status"
+      aria-live="polite"
+      aria-label={`${priorityLabel}: ${label}`}
+    >
+      <span className="announcementTickerIcon" title={priorityLabel} aria-hidden>
+        {icon}
+      </span>
+      <div className="announcementTickerViewport" ref={viewportRef}>
+        <span
+          ref={textRef}
+          className={`announcementTickerText${motion ? ' announcementTickerText--run' : ''}`}
           style={
-            durationSec > 0
+            motion
               ? ({
-                  ['--ticker-duration' as string]: `${durationSec}s`,
-                  ['--ticker-scroll' as string]: `${scrollPx}px`,
+                  ['--marquee-duration' as string]: `${motion.durationSec}s`,
+                  ['--marquee-start' as string]: `${motion.startX}px`,
+                  ['--marquee-end' as string]: `${motion.endX}px`,
                 } as React.CSSProperties)
               : undefined
           }
         >
-          <span className="announcementTickerText">{label}</span>
-        </div>
+          {label}
+        </span>
       </div>
     </div>
   )

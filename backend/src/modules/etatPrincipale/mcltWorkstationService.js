@@ -165,11 +165,25 @@ async function syncWorkstationsForMunicipality(municipalityId, workstations, edi
       } else {
         fields = normalizeMuniInput(raw);
         if (existingRow) {
-          fields.rnc_auth_status = existingRow.rnc_auth_status;
-          fields.ip_rnc_authorized = existingRow.ip_rnc_authorized;
-          fields.rnc_auth_requested_at = existingRow.rnc_auth_requested_at;
-          if (!Object.prototype.hasOwnProperty.call(raw, "ip_rnc_requested")) {
-            fields.ip_rnc_requested = existingRow.ip_rnc_requested;
+          const prevMclt = trimText(existingRow.ip_mclt, 500) || "";
+          const nextMclt = fields.ip_mclt || "";
+          const prevRncReq = trimText(existingRow.ip_rnc_requested, 500) || "";
+          const nextRncReq =
+            Object.prototype.hasOwnProperty.call(raw, "ip_rnc_requested")
+              ? fields.ip_rnc_requested || ""
+              : prevRncReq;
+          if (prevMclt !== nextMclt || prevRncReq !== nextRncReq) {
+            fields.rnc_auth_status = "none";
+            fields.rnc_auth_requested_at = null;
+            fields.ip_rnc_authorized = null;
+            fields.ip_rnc_requested = nextRncReq || null;
+          } else {
+            fields.rnc_auth_status = existingRow.rnc_auth_status;
+            fields.ip_rnc_authorized = existingRow.ip_rnc_authorized;
+            fields.rnc_auth_requested_at = existingRow.rnc_auth_requested_at;
+            if (!Object.prototype.hasOwnProperty.call(raw, "ip_rnc_requested")) {
+              fields.ip_rnc_requested = existingRow.ip_rnc_requested;
+            }
           }
         } else {
           fields.rnc_auth_status = "none";
@@ -278,7 +292,6 @@ async function requestRncAuthorization(userId, workstationId, body = {}) {
 
   const st = String(row.rnc_auth_status || "none");
   if (st === "pending") throw httpError(400, "Authorization request already pending");
-  if (st === "approved") throw httpError(400, "IP already authorized");
 
   const modeRaw = String(body.request_mode || body.mode || "").toLowerCase();
   const isGeneric =

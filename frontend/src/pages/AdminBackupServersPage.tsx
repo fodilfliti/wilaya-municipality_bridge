@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as api from '../api'
 import { DonutChart } from '../components/DonutChart'
+import { BackupServerLinesEditor } from '../etatPrincipale/BackupServerLinesEditor'
 import { EtatPrincipaleEditModal } from '../etatPrincipale/EtatPrincipaleEditModal'
 import { triggerBlobDownload } from '../operations/format'
 import { useSnackbar } from '../snackbar/SnackbarContext'
@@ -190,79 +191,12 @@ export function AdminBackupServersPage({ token }: { token: string }) {
             </>
           }
         >
-          {serverLines.map((line, i) => (
-            <div key={line.id > 0 ? String(line.id) : `new-${i}`} className="card cardSubtle etatModalLineCard">
-              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ fontWeight: 700 }}>{t('backupServersLineTitle', { n: i + 1 })}</div>
-                <button
-                  type="button"
-                  className="btn btnSmall"
-                  disabled={saving || serverLines.length <= 1}
-                  onClick={() => removeServerLine(i)}
-                >
-                  {t('backupServersRemoveServerLine')}
-                </button>
-              </div>
-              <div className="etatMuniLineFields">
-                <label className="etatMuniFieldCheck">
-                  <input
-                    type="checkbox"
-                    checked={line.existe}
-                    onChange={(e) => updateServerLine(i, { existe: e.target.checked })}
-                    disabled={saving}
-                  />
-                  <span>{t('backupServersColExiste')}</span>
-                </label>
-                <label className="field">
-                  <div className="muted">{t('backupServersColServerType')}</div>
-                  <input
-                    className="input"
-                    value={line.server_type || ''}
-                    onChange={(e) => updateServerLine(i, { server_type: e.target.value })}
-                    disabled={saving}
-                    placeholder={t('backupServersOsTypeHint')}
-                  />
-                </label>
-                <label className="etatMuniFieldCheck">
-                  <input
-                    type="checkbox"
-                    checked={line.configured}
-                    onChange={(e) => updateServerLine(i, { configured: e.target.checked })}
-                    disabled={saving}
-                  />
-                  <span>{t('backupServersColConfigured')}</span>
-                </label>
-                <label className="field">
-                  <div className="muted">{t('backupServersColOsType')}</div>
-                  <input
-                    className="input"
-                    value={line.os_type || ''}
-                    onChange={(e) => updateServerLine(i, { os_type: e.target.value })}
-                    disabled={saving}
-                  />
-                </label>
-                <label className="etatMuniFieldCheck">
-                  <input
-                    type="checkbox"
-                    checked={line.os_active}
-                    onChange={(e) => updateServerLine(i, { os_active: e.target.checked })}
-                    disabled={saving}
-                  />
-                  <span>{t('backupServersColOsActive')}</span>
-                </label>
-                <label className="field etatMuniFieldFull">
-                  <div className="muted">{t('backupServersColAnomalie')}</div>
-                  <textarea
-                    className="input"
-                    rows={2}
-                    value={line.anomalie || ''}
-                    onChange={(e) => updateServerLine(i, { anomalie: e.target.value })}
-                    disabled={saving}
-                  />
-                </label>
-              </div>
-            </div>
-          ))}
+          <BackupServerLinesEditor
+            lines={serverLines}
+            saving={saving}
+            onUpdate={updateServerLine}
+            onRemove={removeServerLine}
+          />
         </EtatPrincipaleEditModal>
       ) : null}
 

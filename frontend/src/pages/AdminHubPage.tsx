@@ -191,18 +191,18 @@ export function AdminHubPage({
   );
 
   return (
-    <div style={{ display: "grid", gap: 20 }}>
+    <div className="hubPage">
       <div>
-        <div className="title" style={{ marginBottom: 6 }}>
+        <div className="title" style={{ marginBottom: 4 }}>
           {t("hubTitle")}
         </div>
-        <div className="muted">{t("hubSubtitleAdmin")}</div>
+        <div className="muted" style={{ fontSize: 13 }}>
+          {t("hubSubtitleAdmin")}
+        </div>
       </div>
 
       <div className="card cardSubtle">
-        <div style={{ fontWeight: 800, marginBottom: 12 }}>
-          {t("hubEtatPrincipaleSection")}
-        </div>
+        <h2 className="hubSectionTitle">{t("hubEtatPrincipaleSection")}</h2>
         <div className="hubGrid">
           {etatTiles.map((m) => (
             <HubTileLink key={m.to + m.titleKey} tile={m} />
@@ -211,9 +211,7 @@ export function AdminHubPage({
       </div>
 
       <div className="card cardSubtle">
-        <div style={{ fontWeight: 800, marginBottom: 12 }}>
-          {t("hubCommuneSection")}
-        </div>
+        <h2 className="hubSectionTitle">{t("hubCommuneSection")}</h2>
         <div className="hubGrid">
           {communeTiles.map((m) => (
             <HubTileLink key={m.to + m.titleKey} tile={m} />
@@ -222,9 +220,7 @@ export function AdminHubPage({
       </div>
 
       <div className="card cardSubtle">
-        <div style={{ fontWeight: 800, marginBottom: 12 }}>
-          {t("hubAppsSection")}
-        </div>
+        <h2 className="hubSectionTitle">{t("hubAppsSection")}</h2>
         <div className="hubGrid hubGridPair">
           {appsTiles.map((m) => (
             <HubTileLink key={m.to + m.titleKey} tile={m} />
@@ -233,7 +229,7 @@ export function AdminHubPage({
       </div>
 
       <div className="card cardSubtle">
-        <div style={{ fontWeight: 800, marginBottom: 12 }}>{t("hubWilayaOrgSection")}</div>
+        <h2 className="hubSectionTitle">{t("hubWilayaOrgSection")}</h2>
         <div className="hubGrid hubGridPair">
           {wilayaOrgTiles.map((m) => (
             <HubTileLink key={m.to + m.titleKey} tile={m} />
@@ -242,9 +238,7 @@ export function AdminHubPage({
       </div>
 
       <div className="card cardSubtle">
-        <div style={{ fontWeight: 800, marginBottom: 10 }}>
-          {t("hubQuickSection")}
-        </div>
+        <h2 className="hubSectionTitle">{t("hubQuickSection")}</h2>
         <div className="hubGrid hubGridCompact">
           {quick.map((m) => (
             <Link
